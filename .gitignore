@@ -1,47 +1,26 @@
-# Byte-compiled / optimized / DLL files
+@"
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environments
+venv/
 .venv/
 env/
-venv/
-ENV/
 
-# IDE & Editors
-.idea/
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# IDE
 .vscode/
-*.swp
-*.swo
+.idea/
 
-# Project specific artifacts (keep trained model weights optional / track if small)
-# models/*.joblib
-.pytest_cache/
-.coverage
-htmlcov/
-
-# Operating System Files
+# Temporary files
+*.log
 .DS_Store
 Thumbs.db
+"@ | Set-Content .gitignore
+
+git add .gitignore
+git commit -m "Resolve .gitignore merge conflict"
+git push -u origin main
