@@ -1,0 +1,76 @@
+{
+    "dataset_name": "UCI Chronic Kidney Disease",
+    "dataset_source": "https://archive.ics.uci.edu/static/public/336/data.csv",
+    "total_instances": 400,
+    "total_features": 24,
+    "train_instances": 320,
+    "test_instances": 80,
+    "test_size": 0.2,
+    "random_state": 42,
+    "class_distribution_overall": {
+        "ckd": 250,
+        "notckd": 150
+    },
+    "class_distribution_train": {
+        "ckd": 200,
+        "notckd": 120
+    },
+    "class_distribution_test": {
+        "ckd": 50,
+        "notckd": 30
+    },
+    "learned_numerical_medians": {
+        "age": 54.0,
+        "bp": 80.0,
+        "sg": 1.02,
+        "al": 0.0,
+        "su": 0.0,
+        "bgr": 120.5,
+        "bu": 42.0,
+        "sc": 1.2,
+        "sod": 138.0,
+        "pot": 4.3,
+        "hemo": 12.6,
+        "pcv": 40.0,
+        "wbcc": 8100.0,
+        "rbcc": 4.8
+    },
+    "learned_categorical_modes": {
+        "rbc": "normal",
+        "pc": "normal",
+        "pcc": "notpresent",
+        "ba": "notpresent",
+        "htn": "no",
+        "dm": "no",
+        "cad": "no",
+        "appet": "good",
+        "pe": "no",
+        "ane": "no"
+    },
+    "feature_order": [
+        "age",
+        "bp",
+        "sg",
+        "al",
+        "su",
+        "bgr",
+        "bu",
+        "sc",
+        "sod",
+        "pot",
+        "hemo",
+        "pcv",
+        "wbcc",
+        "rbcc",
+        "rbc",
+        "pc",
+        "pcc",
+        "ba",
+        "htn",
+        "dm",
+        "cad",
+        "appet",
+        "pe",
+        "ane"
+    ]
+}

@@ -1,0 +1,79 @@
+{
+    "algorithm": "DecisionTreeClassifier",
+    "timestamp_utc": "2026-10-20T07:15:41.120990+00:00",
+    "random_state": 42,
+    "hyperparameters": {
+        "criterion": "gini",
+        "max_depth": 5,
+        "min_samples_split": 4,
+        "min_samples_leaf": 2,
+        "class_weight": "balanced"
+    },
+    "dataset_splits": {
+        "train_samples": 320,
+        "test_samples": 80,
+        "num_features": 24
+    },
+    "cross_validation_5fold": {
+        "cv_accuracy_mean": 0.95,
+        "cv_accuracy_std": 0.023,
+        "cv_recall_mean": 0.96,
+        "cv_recall_std": 0.03,
+        "cv_f1_mean": 0.9599,
+        "cv_f1_std": 0.0186,
+        "cv_roc_auc_mean": 0.9525,
+        "cv_roc_auc_std": 0.0215
+    },
+    "test_metrics": {
+        "accuracy": 0.9625,
+        "precision": 1.0,
+        "recall_sensitivity": 0.94,
+        "specificity": 1.0,
+        "f1_score": 0.9691,
+        "roc_auc": 0.989,
+        "confusion_matrix": {
+            "true_negatives": 30,
+            "false_positives": 0,
+            "false_negatives": 3,
+            "true_positives": 47
+        }
+    },
+    "tree_depth": 5,
+    "n_leaves": 10,
+    "gini_feature_importances": {
+        "hemo": 0.7455,
+        "sg": 0.1668,
+        "rbcc": 0.0313,
+        "htn": 0.0298,
+        "pcv": 0.0191,
+        "sc": 0.0076,
+        "pcc": 0.0,
+        "sod": 0.0
+    },
+    "feature_names_order": [
+        "age",
+        "bp",
+        "sg",
+        "al",
+        "su",
+        "bgr",
+        "bu",
+        "sc",
+        "sod",
+        "pot",
+        "hemo",
+        "pcv",
+        "wbcc",
+        "rbcc",
+        "rbc",
+        "pc",
+        "pcc",
+        "ba",
+        "htn",
+        "dm",
+        "cad",
+        "appet",
+        "pe",
+        "ane"
+    ]
+}

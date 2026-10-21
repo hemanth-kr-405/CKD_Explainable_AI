@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Explainable AI for Chronic Kidney Disease Prediction</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/frontend/style.css">
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand">
+                <div class="brand-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="brand-title">CKD Explainable AI</h1>
+                    <p class="brand-subtitle">Chronic Kidney Disease Risk Prediction & SHAP Interpretability</p>
+                </div>
+            </div>
+            <div class="header-meta">
+                <span class="badge badge-tech">Decision Tree</span>
+                <span class="badge badge-tech">SHAP TreeExplainer</span>
+                <span class="badge badge-status" id="system-status">
+                    <span class="status-dot"></span> Checking API...
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+
+        <!-- Medical Disclaimer Banner -->
+        <section class="disclaimer-banner" role="alert">
+            <div class="disclaimer-icon">⚠️</div>
+            <div class="disclaimer-content">
+                <strong>Medical & Academic Disclaimer:</strong> This tool provides an experimental Machine Learning prediction for educational and research purposes only. It is not a medical diagnosis and must not replace advice, testing, or evaluation by a qualified healthcare professional.
+            </div>
+        </section>
+
+        <!-- Project Intro Summary -->
+        <section class="intro-card">
+            <div class="intro-grid">
+                <div>
+                    <h2>Explainable Clinical Decision Support</h2>
+                    <p>
+                        Chronic Kidney Disease (CKD) often progresses without outward symptoms in its early stages. 
+                        While standard machine learning models often operate as opaque "black boxes", this system combines a 
+                        <strong>Decision Tree Classifier</strong> with <strong>SHapley Additive exPlanations (SHAP)</strong> 
+                        to provide both an accurate risk assessment and a transparent, case-by-case clinical rationale.
+                    </p>
+                </div>
+                <div class="intro-features">
+                    <div class="feature-item">
+                        <span class="feature-icon">🔍</span>
+                        <div><strong>Transparent Reasoning:</strong> Every prediction is deconstructed into risk-elevating and protective factors.</div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">📊</span>
+                        <div><strong>Quantitative SHAP:</strong> Explains exactly how much each laboratory biomarker pushed the probability.</div>
+                    </div>
+                    <div class="feature-item">
+                        <span class="feature-icon">🛡️</span>
+                        <div><strong>Zero Data Storage:</strong> Patient vitals are processed strictly in memory without persistent tracking.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard Layout: 2 Columns on Desktop -->
+        <div class="dashboard-grid">
+
+            <!-- LEFT COLUMN: Patient Clinical Input Form -->
+            <section class="card input-section">
+                <div class="card-header">
+                    <div class="card-title-group">
+                        <span class="card-icon">📋</span>
+                        <div>
+                            <h2 class="card-title">Patient Clinical Assessment</h2>
+                            <p class="card-subtitle">Enter laboratory measurements and clinical observations</p>
+                        </div>
+                    </div>
+                    <!-- Sample Presets -->
+                    <div class="preset-buttons">
+                        <button type="button" class="btn-preset btn-preset-ckd" id="btn-preset-ckd" title="Load real test case with high CKD risk">
+                            Preset: CKD Case
+                        </button>
+                        <button type="button" class="btn-preset btn-preset-healthy" id="btn-preset-healthy" title="Load real test case with normal renal function">
+                            Preset: Healthy Case
+                        </button>
+                    </div>
+                </div>
+
+                <form id="ckd-form" class="clinical-form" novalidate>
+
+                    <!-- Section 1: Demographics & Vitals -->
+                    <fieldset class="form-fieldset">
+                        <legend class="fieldset-legend">1. Demographics & Hemodynamics</legend>
+                        <div class="form-grid">
+                            <div class="form-group" id="group-age">
+                                <label for="input-age">Age <span class="unit">(years)</span></label>
+                                <input type="number" id="input-age" name="age" step="1" min="1" max="120" placeholder="e.g. 55">
+                                <small class="range-hint">Valid range: 1 – 120</small>
+                            </div>
+                            <div class="form-group" id="group-bp">
+                                <label for="input-bp">Blood Pressure <span class="unit">(mm/Hg)</span></label>
+                                <input type="number" id="input-bp" name="bp" step="5" min="40" max="250" placeholder="e.g. 80">
+                                <small class="range-hint">Valid range: 40 – 250</small>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Section 2: Renal Markers & Blood Chemistry -->
+                    <fieldset class="form-fieldset">
+                        <legend class="fieldset-legend">2. Renal Biomarkers & Chemistry</legend>
+                        <div class="form-grid">
+                            <div class="form-group" id="group-sc">
+                                <label for="input-sc">Serum Creatinine <span class="unit">(mg/dL)</span> <span class="req">*</span></label>
+                                <input type="number" id="input-sc" name="sc" step="0.1" min="0.1" max="100" placeholder="e.g. 1.2">
+                                <small class="range-hint">Key GFR proxy: 0.1 – 100.0</small>
+                            </div>
+                            <div class="form-group" id="group-bu">
+                                <label for="input-bu">Blood Urea <span class="unit">(mg/dL)</span></label>
+                                <input type="number" id="input-bu" name="bu" step="1" min="1" max="500" placeholder="e.g. 42">
+                                <small class="range-hint">Valid range: 1 – 500</small>
+                            </div>
+                            <div class="form-group" id="group-bgr">
+                                <label for="input-bgr">Blood Glucose Random <span class="unit">(mg/dL)</span></label>
+                                <input type="number" id="input-bgr" name="bgr" step="1" min="20" max="600" placeholder="e.g. 120">
+                                <small class="range-hint">Valid range: 20 – 600</small>
+                            </div>
+                            <div class="form-group" id="group-sod">
+                                <label for="input-sod">Serum Sodium <span class="unit">(mEq/L)</span></label>
+                                <input type="number" id="input-sod" name="sod" step="0.5" min="50" max="200" placeholder="e.g. 138">
+                                <small class="range-hint">Valid range: 50 – 200</small>
+                            </div>
+                            <div class="form-group" id="group-pot">
+                                <label for="input-pot">Serum Potassium <span class="unit">(mEq/L)</span></label>
+                                <input type="number" id="input-pot" name="pot" step="0.1" min="1.0" max="60.0" placeholder="e.g. 4.3">
+                                <small class="range-hint">Valid range: 1.0 – 60.0</small>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Section 3: Hematology -->
+                    <fieldset class="form-fieldset">
+                        <legend class="fieldset-legend">3. Hematology & Blood Counts</legend>
+                        <div class="form-grid">
+                            <div class="form-group" id="group-hemo">
+                                <label for="input-hemo">Hemoglobin <span class="unit">(g/dL)</span> <span class="req">*</span></label>
+                                <input type="number" id="input-hemo" name="hemo" step="0.1" min="2.0" max="25.0" placeholder="e.g. 12.6">
+                                <small class="range-hint">Top predictor: 2.0 – 25.0</small>
+                            </div>
+                            <div class="form-group" id="group-pcv">
+                                <label for="input-pcv">Packed Cell Volume <span class="unit">(%)</span></label>
+                                <input type="number" id="input-pcv" name="pcv" step="1" min="5" max="70" placeholder="e.g. 40">
+                                <small class="range-hint">Hematocrit: 5 – 70%</small>
+                            </div>
+                            <div class="form-group" id="group-rbcc">
+                                <label for="input-rbcc">Red Blood Cell Count <span class="unit">(mil/cmm)</span></label>
+                                <input type="number" id="input-rbcc" name="rbcc" step="0.1" min="0.5" max="12.0" placeholder="e.g. 4.8">
+                                <small class="range-hint">Valid range: 0.5 – 12.0</small>
+                            </div>
+                            <div class="form-group" id="group-wbcc">
+                                <label for="input-wbcc">White Blood Cell Count <span class="unit">(cells/cumm)</span></label>
+                                <input type="number" id="input-wbcc" name="wbcc" step="100" min="500" max="50000" placeholder="e.g. 8100">
+                                <small class="range-hint">Valid range: 500 – 50,000</small>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Section 4: Urinalysis -->
+                    <fieldset class="form-fieldset">
+                        <legend class="fieldset-legend">4. Urinalysis Parameters</legend>
+                        <div class="form-grid">
+                            <div class="form-group" id="group-sg">
+                                <label for="input-sg">Specific Gravity <span class="unit">(density)</span> <span class="req">*</span></label>
+                                <select id="input-sg" name="sg">
+                                    <option value="">Select gravity...</option>
+                                    <option value="1.005">1.005 (Very Low Concentration)</option>
+                                    <option value="1.010">1.010 (Low Concentration)</option>
+                                    <option value="1.015">1.015 (Mild Impairment)</option>
+                                    <option value="1.020">1.020 (Normal)</option>
+                                    <option value="1.025">1.025 (Healthy Concentration)</option>
+                                </select>
+                                <small class="range-hint">Tubular function indicator</small>
+                            </div>
+                            <div class="form-group" id="group-al">
+                                <label for="input-al">Albumin <span class="unit">(grade 0-5)</span></label>
+                                <select id="input-al" name="al">
+                                    <option value="">Select albumin...</option>
+                                    <option value="0">0 (Normal / Absent)</option>
+                                    <option value="1">1 (Trace / Mild)</option>
+                                    <option value="2">2 (Moderate)</option>
+                                    <option value="3">3 (Marked)</option>
+                                    <option value="4">4 (Severe)</option>
+                                    <option value="5">5 (Massive Proteinuria)</option>
+                                </select>
+                                <small class="range-hint">Proteinuria scale: 0 to 5</small>
+                            </div>
+                            <div class="form-group" id="group-su">
+                                <label for="input-su">Sugar <span class="unit">(grade 0-5)</span></label>
+                                <select id="input-su" name="su">
+                                    <option value="">Select sugar...</option>
+                                    <option value="0">0 (Normal / None)</option>
+                                    <option value="1">1 (Trace)</option>
+                                    <option value="2">2 (Mild)</option>
+                                    <option value="3">3 (Moderate)</option>
+                                    <option value="4">4 (Marked)</option>
+                                    <option value="5">5 (Severe Glycosuria)</option>
+                                </select>
+                                <small class="range-hint">Glucosuria scale: 0 to 5</small>
+                            </div>
+                            <div class="form-group" id="group-rbc">
+                                <label for="input-rbc">Red Blood Cells in Urine</label>
+                                <select id="input-rbc" name="rbc">
+                                    <option value="">Select status...</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="abnormal">Abnormal (Hematuria)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-pc">
+                                <label for="input-pc">Pus Cells in Urine</label>
+                                <select id="input-pc" name="pc">
+                                    <option value="">Select status...</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="abnormal">Abnormal (Pyuria)</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-pcc">
+                                <label for="input-pcc">Pus Cell Clumps</label>
+                                <select id="input-pcc" name="pcc">
+                                    <option value="">Select...</option>
+                                    <option value="notpresent">Not Present</option>
+                                    <option value="present">Present</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-ba">
+                                <label for="input-ba">Bacteria in Urine</label>
+                                <select id="input-ba" name="ba">
+                                    <option value="">Select...</option>
+                                    <option value="notpresent">Not Present</option>
+                                    <option value="present">Present</option>
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Section 5: Clinical History & Comorbidities -->
+                    <fieldset class="form-fieldset">
+                        <legend class="fieldset-legend">5. Clinical History & Comorbidities</legend>
+                        <div class="form-grid">
+                            <div class="form-group" id="group-htn">
+                                <label for="input-htn">Hypertension</label>
+                                <select id="input-htn" name="htn">
+                                    <option value="">Select...</option>
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-dm">
+                                <label for="input-dm">Diabetes Mellitus</label>
+                                <select id="input-dm" name="dm">
+                                    <option value="">Select...</option>
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-cad">
+                                <label for="input-cad">Coronary Artery Disease</label>
+                                <select id="input-cad" name="cad">
+                                    <option value="">Select...</option>
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-appet">
+                                <label for="input-appet">Appetite</label>
+                                <select id="input-appet" name="appet">
+                                    <option value="">Select...</option>
+                                    <option value="good">Good</option>
+                                    <option value="poor">Poor</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-pe">
+                                <label for="input-pe">Pedal Edema (Foot Swelling)</label>
+                                <select id="input-pe" name="pe">
+                                    <option value="">Select...</option>
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                            <div class="form-group" id="group-ane">
+                                <label for="input-ane">Anemia History</label>
+                                <select id="input-ane" name="ane">
+                                    <option value="">Select...</option>
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Form Controls -->
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                            <span class="btn-icon">⚡</span>
+                            <span>Predict & Explain</span>
+                        </button>
+                        <button type="button" class="btn btn-secondary" id="btn-reset">
+                            <span>Reset Form</span>
+                        </button>
+                    </div>
+
+                    <!-- Client-Side Form Error Alert -->
+                    <div id="form-error-alert" class="alert alert-danger" style="display: none;"></div>
+
+                </form>
+            </section>
+
+            <!-- RIGHT COLUMN: Prediction & SHAP Explanation Results -->
+            <section class="card results-section" id="results-panel">
+
+                <!-- Placeholder State before first prediction -->
+                <div class="placeholder-state" id="placeholder-state">
+                    <div class="placeholder-icon">🩺</div>
+                    <h3>No Assessment Evaluated Yet</h3>
+                    <p>Enter patient measurements on the left or select a preset to generate a Machine Learning prediction and SHAP explainability analysis.</p>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-state" id="loading-state" style="display: none;">
+                    <div class="spinner"></div>
+                    <h3>Analyzing Clinical Parameters...</h3>
+                    <p>Computing Decision Tree inference and exact Shapley attribution values.</p>
+                </div>
+
+                <!-- Output Display Container -->
+                <div class="output-container" id="output-container" style="display: none;">
+
+                    <!-- Primary Outcome Card -->
+                    <div class="outcome-card" id="outcome-card">
+                        <div class="outcome-header">
+                            <span class="outcome-tag">Prediction Result</span>
+                            <span class="confidence-badge" id="confidence-badge">Leaf Probability (Uncalibrated)</span>
+                        </div>
+                        <h3 class="outcome-label" id="outcome-label">Chronic Kidney Disease (CKD)</h3>
+                        <p class="outcome-narrative" id="outcome-narrative">Clinical narrative synthesis loading...</p>
+
+                        <!-- Probability Bar -->
+                        <div class="probability-container">
+                            <div class="prob-labels">
+                                <span>CKD Risk Probability: <strong id="ckd-prob-text">0%</strong></span>
+                                <span>Non-CKD Probability: <strong id="non-ckd-prob-text">0%</strong></span>
+                            </div>
+                            <div class="prob-bar-track">
+                                <div class="prob-bar-fill" id="prob-bar-fill" style="width: 50%;"></div>
+                            </div>
+                            <p class="calibration-note">ℹ️ <strong>Model Output Note:</strong> Decision Tree probabilities reflect sample purity at the terminal leaf node and are not calibrated clinical risk estimates.</p>
+                        </div>
+                    </div>
+
+                    <!-- Local SHAP Explanation Breakdown -->
+                    <div class="shap-breakdown-card">
+                        <div class="card-title-group">
+                            <span class="card-icon">🧠</span>
+                            <div>
+                                <h3 class="subheading">SHAP Case-Level Explanation</h3>
+                                <p class="subtext">How each clinical parameter pushed the patient's score</p>
+                            </div>
+                        </div>
+
+                        <!-- Baseline Reference -->
+                        <div class="shap-baseline-pill">
+                            <span>Training Baseline Expected Score ($E[f(x)]$): <strong id="shap-base-val">0.500</strong></span>
+                            <span>Patient Decision Score ($f(x)$): <strong id="shap-final-val">1.000</strong></span>
+                        </div>
+
+                        <!-- Top Risk Drivers (Elevating Risk) -->
+                        <div class="attributions-block">
+                            <h4 class="factors-heading text-risk">
+                                <span>🔺 Features Increasing Predicted CKD Risk (Positive SHAP Contribution)</span>
+                            </h4>
+                            <div id="risk-factors-list" class="factors-list">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Top Protective Factors (Lowering Risk) -->
+                        <div class="attributions-block">
+                            <h4 class="factors-heading text-protective">
+                                <span>🔻 Features Decreasing Predicted CKD Risk (Negative SHAP Contribution)</span>
+                            </h4>
+                            <div id="protective-factors-list" class="factors-list">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Waterfall Plot Image View -->
+                        <div class="waterfall-plot-card" id="waterfall-container" style="display: none;">
+                            <h4 class="subheading-small">SHAP Waterfall Visualization</h4>
+                            <p class="subtext">Visual vector progression from baseline expectation to final prediction</p>
+                            <div class="plot-frame">
+                                <img id="waterfall-img" src="" alt="SHAP Patient Waterfall Plot">
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </section>
+
+        </div>
+
+        <!-- BOTTOM SECTION: Model Evaluation & Global Interpretability -->
+        <section class="card model-insights-section">
+            <div class="card-header">
+                <div class="card-title-group">
+                    <span class="card-icon">📈</span>
+                    <div>
+                        <h2 class="card-title">Model Performance & Global Clinical Interpretability</h2>
+                        <p class="card-subtitle">Verified metrics on held-out test data (N=80) and global feature attribution</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Metrics Counter Tiles -->
+            <div class="metrics-grid">
+                <div class="metric-tile">
+                    <span class="metric-num text-blue" id="metric-accuracy">96.25%</span>
+                    <span class="metric-name">Test Accuracy</span>
+                    <span class="metric-desc">77 of 80 test cases correct</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-num text-emerald" id="metric-precision">100.0%</span>
+                    <span class="metric-name">Precision (PPV)</span>
+                    <span class="metric-desc">0 false positive alarms</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-num text-purple" id="metric-recall">94.00%</span>
+                    <span class="metric-name">Sensitivity / Recall</span>
+                    <span class="metric-desc">47 of 50 CKD cases detected</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-num text-amber" id="metric-specificity">100.0%</span>
+                    <span class="metric-name">Specificity (TNR)</span>
+                    <span class="metric-desc">30 of 30 healthy ruled out</span>
+                </div>
+                <div class="metric-tile">
+                    <span class="metric-num text-rose" id="metric-roc-auc">0.9890</span>
+                    <span class="metric-name">ROC-AUC Score</span>
+                    <span class="metric-desc">Discriminatory capability</span>
+                </div>
+            </div>
+
+            <!-- Global Feature Importance & Evaluation Visuals Tabs -->
+            <div class="insights-visuals-grid">
+                <div class="visual-panel">
+                    <h3>Global SHAP Feature Ranking</h3>
+                    <p class="subtext">Average absolute impact on model decisions across the patient cohort</p>
+                    <div class="ranking-list" id="global-ranking-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                <div class="visual-panel">
+                    <h3>Confusion Matrix Breakdown</h3>
+                    <div class="cm-display">
+                        <div class="cm-cell cm-tn">
+                            <strong>TN = 30</strong>
+                            <span>True Healthy</span>
+                        </div>
+                        <div class="cm-cell cm-fp">
+                            <strong>FP = 0</strong>
+                            <span>False Alarm</span>
+                        </div>
+                        <div class="cm-cell cm-fn">
+                            <strong>FN = 3</strong>
+                            <span>Missed CKD (Critical)</span>
+                        </div>
+                        <div class="cm-cell cm-tp">
+                            <strong>TP = 47</strong>
+                            <span>Detected CKD</span>
+                        </div>
+                    </div>
+                    <div class="clinical-note">
+                        <strong>Nephrology Risk Assessment:</strong> The model prioritizes minimizing False Negatives ($FN = 3$), ensuring patients with silent renal impairment are flagged for confirmatory lab tests before complications advance.
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- App Footer -->
+    <footer class="app-footer">
+        <div class="footer-container">
+            <p>Explainable AI for Chronic Kidney Disease Prediction using Machine Learning and SHAP</p>
+            <p class="footer-subtext">Built with Python, Scikit-learn, SHAP, FastAPI, and Vanilla JavaScript • Academic Research Project</p>
+        </div>
+    </footer>
+
+    <script src="/frontend/script.js"></script>
+</body>
+</html>
