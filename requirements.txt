@@ -17,3 +17,8 @@ python-multipart>=0.0.9
 # Testing & Integration
 pytest>=8.0.0
 httpx>=0.27.0
+
+# Medical Document Processing & OCR
+pypdf>=4.0.0
+pytesseract>=0.3.10
+pillow>=10.0.0

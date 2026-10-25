@@ -20,10 +20,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from src.config import (
@@ -37,6 +37,14 @@ from src.config import (
     TARGET_NAMES
 )
 from src.explain_predictions import CKDExplainer
+from src.document_upload import (
+    document_session_manager,
+    DocumentValidationError
+)
+from src.document_extractor import document_extractor
+from src.parameter_extractor import parameter_extractor
+from src.patient_verifier import verify_patient_parameters_payload
+from src.report_generator import generate_clinical_pdf_report
 from backend.schemas import (
     PatientInput,
     PredictionResponse,
@@ -45,7 +53,20 @@ from backend.schemas import (
     FeatureContribution,
     FeaturesResponse,
     FeatureMetadataDetail,
-    HealthResponse
+    HealthResponse,
+    DocumentUploadResponse,
+    DocumentRemoveResponse,
+    DocumentExtractionResponse,
+    ParameterExtractionResponse,
+    ExtractedParameterDetail,
+    UnsupportedParameterDetail,
+    VerifiedParameterItem,
+    VerificationSubmissionRequest,
+    VerificationValidationResult,
+    ClinicalDistinction,
+    ProvenanceSummary,
+    VerifiedPredictionResponse,
+    ReportDownloadRequest
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -122,6 +143,9 @@ async def lifespan(app: FastAPI):
     yield
 
     logging.info("Shutting down CKD Explainable AI FastAPI Service...")
+    cleaned = document_session_manager.cleanup_all()
+    if cleaned > 0:
+        logging.info(f"Purged {cleaned} temporary document upload(s) during shutdown.")
 
 
 # ============================================================================
@@ -149,7 +173,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -209,6 +233,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={
             "detail": "Patient input validation failed. Please review clinical ranges and types.",
             "errors": errors
+        }
+    )
+
+
+@app.exception_handler(DocumentValidationError)
+async def document_validation_exception_handler(request: Request, exc: DocumentValidationError):
+    """
+    Returns structured error response for document validation failures without stack traces.
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.message,
+            "error_type": exc.__class__.__name__
         }
     )
 
@@ -385,12 +423,18 @@ async def predict_and_explain(patient_input: PatientInput):
                 base_value=raw_result["shap_explanation"]["base_value"],
                 patient_model_output=raw_result["shap_explanation"]["patient_model_output"],
                 explanation_target=raw_result["shap_explanation"]["explanation_target"],
-                interpretation_guide=raw_result["shap_explanation"]["interpretation_guide"],
+                output_scale=raw_result["shap_explanation"].get("output_scale", "Probability Scale [0.0 to 1.0]"),
+                scale_interpretation=raw_result["shap_explanation"].get("scale_interpretation"),
+                directionality_guide=raw_result["shap_explanation"].get("directionality_guide"),
+                causality_caveat=raw_result["shap_explanation"].get("causality_caveat"),
                 top_risk_drivers=[
                     FeatureContribution(**f) for f in raw_result["shap_explanation"]["top_risk_drivers"]
                 ],
                 top_protective_factors=[
                     FeatureContribution(**f) for f in raw_result["shap_explanation"]["top_protective_factors"]
+                ],
+                most_influential_features=[
+                    FeatureContribution(**f) for f in raw_result["shap_explanation"].get("most_influential_features", [])
                 ],
                 all_feature_contributions=[
                     FeatureContribution(**f) for f in raw_result["shap_explanation"]["all_feature_contributions"]
@@ -409,6 +453,527 @@ async def predict_and_explain(patient_input: PatientInput):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error generating prediction and explanation. Please verify input data."
         ) from e
+
+
+# ============================================================================
+# Document Processing Routes (Phase 2)
+# ============================================================================
+
+@app.post("/upload-document", response_model=DocumentUploadResponse, tags=["Document Processing"])
+async def upload_medical_document(file: UploadFile = File(...)):
+    """
+    Accepts and securely validates an uploaded medical document (PDF, PNG, JPG/JPEG).
+    Validates binary magic bytes, enforces a 10MB size limit, generates safe internal storage,
+    and isolates in a temporary controlled location without persistent storage or external transmission.
+    """
+    if not file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No filename provided. Please upload a valid medical report."
+        )
+
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        logging.error(f"Failed to read uploaded file stream: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not read uploaded file content."
+        )
+
+    try:
+        record = document_session_manager.save_upload(file_bytes, file.filename)
+        return DocumentUploadResponse(
+            upload_id=record["upload_id"],
+            filename=record["filename"],
+            content_type=record["content_type"],
+            file_size_bytes=record["file_size_bytes"],
+            file_size_formatted=record["file_size_formatted"],
+            status="uploaded_and_verified",
+            message="Document uploaded and verified successfully. Ready for review and extraction.",
+            uploaded_at=record["uploaded_at"]
+        )
+    except DocumentValidationError:
+        raise
+    except Exception as e:
+        logging.error(f"Unexpected error during document upload processing: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error securely validating and staging the document."
+        )
+
+
+@app.delete("/upload-document/{upload_id}", response_model=DocumentRemoveResponse, tags=["Document Processing"])
+async def remove_uploaded_document(upload_id: str):
+    """
+    Cancels and immediately purges a temporarily uploaded medical document.
+    """
+    purged = document_session_manager.delete_upload(upload_id)
+    if not purged:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload session '{upload_id}' not found or already purged."
+        )
+    return DocumentRemoveResponse(
+        upload_id=upload_id,
+        status="removed",
+        message="Temporary medical document purged securely from temporary storage."
+    )
+
+
+@app.post("/extract-text/{upload_id}", response_model=DocumentExtractionResponse, tags=["Document Processing"])
+async def extract_document_text(upload_id: str):
+    """
+    Extracts text content from a previously uploaded and validated document session.
+    Supports digital PDFs, scanned PDFs (with OCR), and image formats (PNG, JPG, JPEG).
+    Returns structured extraction metadata while keeping extracted text strictly in-memory
+    for downstream verification without external transmission.
+    """
+    record = document_session_manager.get_upload(upload_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload session '{upload_id}' not found or already purged. Please upload the document again."
+        )
+
+    file_path = Path(record["internal_path"])
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Underlying temporary document file was purged or is inaccessible."
+        )
+
+    try:
+        result = document_extractor.extract_from_path(file_path)
+
+        # Cache extracted text in-memory within the active session for Phase 4
+        record["extracted_text"] = result.extracted_text
+        record["extraction_result"] = result
+
+        has_content = len(result.extracted_text.strip()) > 0
+        return DocumentExtractionResponse(
+            upload_id=upload_id,
+            status=result.status,
+            document_type=result.document_type,
+            pages_processed=result.pages_processed,
+            extraction_method=result.extraction_method,
+            text_length_characters=len(result.extracted_text),
+            has_extractable_text=has_content,
+            warnings=result.warnings,
+            errors=result.errors,
+            setup_instructions=result.setup_instructions
+        )
+    except Exception as e:
+        logging.error(f"Error during document text extraction for upload {upload_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error during document text extraction."
+        )
+
+
+@app.post("/extract-parameters/{upload_id}", response_model=ParameterExtractionResponse, tags=["Document Processing"])
+async def extract_patient_parameters(upload_id: str):
+    """
+    Extracts structured laboratory and clinical parameters strictly mapped to the 24 CKD model features.
+    Uses deterministic parsing with reference-range immunity, unit normalization, and conflict detection.
+    Does NOT connect to the ML model or trigger predictions in this phase (Phase 4).
+    """
+    record = document_session_manager.get_upload(upload_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload session '{upload_id}' not found or already purged. Please upload the report again."
+        )
+
+    # If text extraction has not been performed yet, perform it now automatically
+    extracted_text = record.get("extracted_text")
+    if extracted_text is None:
+        file_path = Path(record["internal_path"])
+        if not file_path.is_file():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Underlying temporary document file was purged or is inaccessible."
+            )
+        try:
+            extraction_result = document_extractor.extract_from_path(file_path)
+            record["extracted_text"] = extraction_result.extracted_text
+            record["extraction_result"] = extraction_result
+            extracted_text = extraction_result.extracted_text
+        except Exception as e:
+            logging.error(f"Error executing text extraction prior to parameter extraction for {upload_id}: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal error reading text from document before parameter extraction."
+            )
+
+    extraction_result = record.get("extraction_result")
+    if extraction_result:
+        if extraction_result.status == "ocr_engine_unavailable":
+            instructions = extraction_result.setup_instructions or "No supported OCR engine is available."
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Optical Character Recognition (OCR) is unavailable: {instructions}"
+            )
+        elif extraction_result.status == "failed" and extraction_result.document_type == "image":
+            err_msg = "; ".join(extraction_result.errors) if extraction_result.errors else "Document text extraction failed."
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Document text extraction failed: {err_msg}"
+            )
+
+    try:
+        summary = parameter_extractor.extract_from_text(extracted_text)
+
+        # Cache structured parameters within the session for Phase 5 verification & prediction
+        record["extracted_parameters"] = summary
+
+        return ParameterExtractionResponse(
+            upload_id=upload_id,
+            total_features_supported=summary.total_features_supported,
+            extracted_unambiguous_count=summary.extracted_unambiguous_count,
+            extracted_requiring_review_count=summary.extracted_requiring_review_count,
+            conflicting_count=summary.conflicting_count,
+            unreadable_count=summary.unreadable_count,
+            missing_count=summary.missing_count,
+            unsupported_detected_count=summary.unsupported_detected_count,
+            parameters={
+                k: ExtractedParameterDetail(
+                    canonical_name=v.canonical_name,
+                    clinical_label=v.clinical_label,
+                    extracted_value=v.extracted_value,
+                    raw_value_str=v.raw_value_str,
+                    unit=v.unit,
+                    original_text=v.original_text,
+                    source_page=v.source_page,
+                    status=v.status,
+                    warnings=v.warnings,
+                    is_valid_for_model=v.is_valid_for_model,
+                    repeat_count=v.repeat_count
+                )
+                for k, v in summary.parameters.items()
+            },
+            unsupported_parameters=[
+                UnsupportedParameterDetail(
+                    detected_name=u.detected_name,
+                    raw_snippet=u.raw_snippet,
+                    source_page=u.source_page,
+                    status=u.status,
+                    note=u.note
+                )
+                for u in summary.unsupported_parameters
+            ],
+            disclaimer=summary.disclaimer
+        )
+    except Exception as e:
+        logging.error(f"Error extracting clinical parameters for upload {upload_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error extracting clinical parameters from document text."
+        )
+
+
+@app.get("/extract-parameters/{upload_id}", response_model=ParameterExtractionResponse, tags=["Document Processing"])
+async def get_extracted_parameters(upload_id: str):
+    """
+    Retrieves previously extracted structured parameters for an active document session.
+    """
+    record = document_session_manager.get_upload(upload_id)
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Upload session '{upload_id}' not found or already purged."
+        )
+
+    cached_summary = record.get("extracted_parameters")
+    if not cached_summary:
+        # If not cached yet, run extraction on the staged text
+        return await extract_patient_parameters(upload_id)
+
+    return ParameterExtractionResponse(
+        upload_id=upload_id,
+        total_features_supported=cached_summary.total_features_supported,
+        extracted_unambiguous_count=cached_summary.extracted_unambiguous_count,
+        extracted_requiring_review_count=cached_summary.extracted_requiring_review_count,
+        conflicting_count=cached_summary.conflicting_count,
+        unreadable_count=cached_summary.unreadable_count,
+        missing_count=cached_summary.missing_count,
+        unsupported_detected_count=cached_summary.unsupported_detected_count,
+        parameters={
+            k: ExtractedParameterDetail(
+                canonical_name=v.canonical_name,
+                clinical_label=v.clinical_label,
+                extracted_value=v.extracted_value,
+                raw_value_str=v.raw_value_str,
+                unit=v.unit,
+                original_text=v.original_text,
+                source_page=v.source_page,
+                status=v.status,
+                warnings=v.warnings,
+                is_valid_for_model=v.is_valid_for_model,
+                repeat_count=v.repeat_count
+            )
+            for k, v in cached_summary.parameters.items()
+        },
+        unsupported_parameters=[
+            UnsupportedParameterDetail(
+                detected_name=u.detected_name,
+                raw_snippet=u.raw_snippet,
+                source_page=u.source_page,
+                status=u.status,
+                note=u.note
+            )
+            for u in cached_summary.unsupported_parameters
+        ],
+        disclaimer=cached_summary.disclaimer
+    )
+
+
+@app.post("/verify-parameters", response_model=VerificationValidationResult, tags=["Document Processing"])
+async def verify_patient_parameters(request: VerificationSubmissionRequest):
+    """
+    Independently validates patient parameters submitted via the verification interface.
+    Enforces physiological ranges and categorical domains, tracks provenance (extracted, manual, verified),
+    blocks invalid or unresolved conflicting values, and sanitizes input for prediction.
+    """
+    try:
+        validation_result = verify_patient_parameters_payload(
+            submitted_parameters=request.parameters,
+            allow_imputation=request.allow_imputation
+        )
+
+        # If upload session UUID provided, cache verification in ephemeral storage
+        if request.upload_id:
+            record = document_session_manager.get_upload(request.upload_id)
+            if record:
+                record["verified_parameters"] = validation_result
+                if validation_result.sanitized_input:
+                    record["sanitized_patient_input"] = validation_result.sanitized_input
+
+        # Convert records to Pydantic items
+        param_items = {
+            k: VerifiedParameterItem(
+                canonical_name=v.canonical_name,
+                clinical_label=v.clinical_label,
+                value=v.value,
+                unit=v.unit,
+                origin=v.origin,
+                status=v.status,
+                source_text=v.source_text,
+                source_page=v.source_page,
+                warnings=v.warnings,
+                errors=v.errors,
+                is_valid=v.is_valid
+            )
+            for k, v in validation_result.parameters.items()
+        }
+
+        return VerificationValidationResult(
+            is_valid_for_prediction=validation_result.is_valid_for_prediction,
+            total_features=validation_result.total_features,
+            verified_count=validation_result.verified_count,
+            requires_review_count=validation_result.requires_review_count,
+            missing_count=validation_result.missing_count,
+            conflicting_count=validation_result.conflicting_count,
+            invalid_count=validation_result.invalid_count,
+            extracted_count=validation_result.extracted_count,
+            manual_count=validation_result.manual_count,
+            parameters=param_items,
+            validation_errors=validation_result.validation_errors,
+            sanitized_input=validation_result.sanitized_input,
+            message=validation_result.message
+        )
+    except Exception as e:
+        logging.error(f"Error during parameter verification: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error validating patient parameters."
+        )
+
+
+@app.post("/predict-verified", response_model=VerifiedPredictionResponse, tags=["Inference & XAI"])
+async def predict_verified_parameters(request: VerificationSubmissionRequest):
+    """
+    Accepts verified patient parameters, executes independent backend verification,
+    constructs model input matching the exact 24-feature schema, preserves training-time
+    preprocessing and feature ordering, runs inference via the existing trained Decision Tree,
+    computes SHAP local explanations, and returns predictions with explicit probability caveats
+    and clear distinctions from clinical diagnoses.
+    """
+    # 1. Independent backend validation
+    try:
+        validation_result = verify_patient_parameters_payload(
+            submitted_parameters=request.parameters,
+            allow_imputation=request.allow_imputation
+        )
+    except Exception as e:
+        logging.error(f"Error during backend verification in predict-verified: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error validating patient parameters before prediction."
+        )
+
+    # 2. Gate prediction: Reject if invalid bounds or unresolved conflicts exist
+    if not validation_result.is_valid_for_prediction or not validation_result.sanitized_input:
+        error_details = []
+        for feat, errs in validation_result.validation_errors.items():
+            error_details.append(f"{feat}: {'; '.join(errs)}")
+        error_msg = validation_result.message
+        if error_details:
+            error_msg += f" Details: {' | '.join(error_details)}"
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=error_msg
+        )
+
+    if validation_result.missing_count == 24:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Prediction is blocked: All 24 patient clinical parameters are missing. Please enter or verify patient lab values."
+        )
+
+    sanitized_input = validation_result.sanitized_input
+
+    # 3. Cache verified parameters in session if upload_id was provided
+    if request.upload_id:
+        record = document_session_manager.get_upload(request.upload_id)
+        if record:
+            record["verified_parameters"] = validation_result
+            record["sanitized_patient_input"] = sanitized_input
+
+    # 4. Generate prediction and SHAP explanation using existing CKDExplainer singleton
+    try:
+        explainer = get_explainer()
+        raw_result = explainer.explain_patient(
+            sanitized_input,
+            return_base64_plot=request.include_plot
+        )
+    except Exception as e:
+        logging.error(f"Prediction execution failed on verified parameters: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal error generating model prediction and explanation from verified parameters."
+        )
+
+    # 5. Formulate clinical narrative, distinction, and structured response
+    clinical_summary = formulate_clinical_summary(raw_result)
+
+    pred_label = raw_result["prediction"]["class_label"]
+    pred_code = raw_result["prediction"]["class_code"]
+    ckd_prob = raw_result["prediction"]["ckd_probability"]
+    non_ckd_prob = raw_result["prediction"]["non_ckd_probability"]
+
+    clinical_distinction = ClinicalDistinction(
+        model_prediction=f"DecisionTree algorithmic classification: {pred_label} (Class {pred_code})",
+        model_probability=(
+            f"Terminal leaf proportion: {ckd_prob * 100:.1f}% for CKD, {non_ckd_prob * 100:.1f}% for Non-CKD. "
+            f"This represents training sample leaf purity, NOT an individual patient's clinical risk of disease."
+        ),
+        clinical_diagnosis=(
+            "CANNOT be established by machine learning. A definitive medical diagnosis requires "
+            "formal clinical evaluation by a licensed physician, comprehensive medical history, and confirmatory laboratory workup."
+        )
+    )
+
+    provenance_summary = ProvenanceSummary(
+        total_features=validation_result.total_features,
+        verified_count=validation_result.verified_count,
+        extracted_count=validation_result.extracted_count,
+        manual_count=validation_result.manual_count,
+        missing_count=validation_result.missing_count,
+        imputation_applied=(validation_result.missing_count > 0),
+        imputation_strategy="Documented training-cohort median for numerics and mode for categoricals"
+    )
+
+    response = VerifiedPredictionResponse(
+        prediction_label=pred_label,
+        prediction_code=pred_code,
+        probabilities=ProbabilityScores(
+            ckd_probability=ckd_prob,
+            non_ckd_probability=non_ckd_prob
+        ),
+        probability_caveat=(
+            "Decision Tree leaf probabilities reflect empirical sample proportions of the terminal "
+            "leaf node from the training cohort. They are uncalibrated frequency estimates and MUST NOT "
+            "be interpreted as an individual patient's clinical risk of disease."
+        ),
+        clinical_distinction=clinical_distinction,
+        provenance_summary=provenance_summary,
+        explanation_method="SHAP (TreeExplainer)",
+        explanation=SHAPExplanationData(
+            base_value=raw_result["shap_explanation"]["base_value"],
+            patient_model_output=raw_result["shap_explanation"]["patient_model_output"],
+            explanation_target=raw_result["shap_explanation"]["explanation_target"],
+            output_scale=raw_result["shap_explanation"].get("output_scale", "Probability Scale [0.0 to 1.0]"),
+            scale_interpretation=raw_result["shap_explanation"].get("scale_interpretation"),
+            directionality_guide=raw_result["shap_explanation"].get("directionality_guide"),
+            causality_caveat=raw_result["shap_explanation"].get("causality_caveat"),
+            top_risk_drivers=[
+                FeatureContribution(**f) for f in raw_result["shap_explanation"]["top_risk_drivers"]
+            ],
+            top_protective_factors=[
+                FeatureContribution(**f) for f in raw_result["shap_explanation"]["top_protective_factors"]
+            ],
+            most_influential_features=[
+                FeatureContribution(**f) for f in raw_result["shap_explanation"].get("most_influential_features", [])
+            ],
+            all_feature_contributions=[
+                FeatureContribution(**f) for f in raw_result["shap_explanation"]["all_feature_contributions"]
+            ]
+        ),
+        clinical_summary=clinical_summary,
+        waterfall_plot_base64=raw_result.get("waterfall_plot_base64"),
+        medical_disclaimer=(
+            "Educational and Clinical Decision Support: Model outputs are statistical patterns and "
+            "do not constitute a medical diagnosis or treatment directive. Clinical safety and diagnostic "
+            "accuracy cannot be claimed on the basis of software tests alone. Final medical determinations "
+            "must be made by qualified healthcare professionals."
+        )
+    )
+
+    if request.upload_id:
+        record = document_session_manager.get_upload(request.upload_id)
+        if record:
+            record["verified_prediction_response"] = response.model_dump()
+
+    return response
+
+
+@app.post("/download-report", tags=["Clinical Decision Support"])
+async def download_clinical_report(request: ReportDownloadRequest):
+    """
+    Generates and downloads a vector PDF clinical decision support report containing:
+    - Patient and document metadata
+    - Model prediction and uncalibrated leaf purity
+    - Clinical vs model boundary distinction
+    - Complete 24-parameter laboratory provenance record
+    - Quantitative SHAP attribution analysis and directionality guide
+    - Medical and legal non-diagnostic disclaimers
+    """
+    try:
+        pdf_bytes = generate_clinical_pdf_report(
+            prediction_data=request.prediction_result,
+            verified_parameters=request.verified_parameters,
+            document_name=request.document_name,
+            session_id=request.upload_id
+        )
+
+        filename = f"CKD_Clinical_Report_{request.upload_id[:8] if request.upload_id else 'Session'}.pdf"
+
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=\"{filename}\"",
+                "Cache-Control": "no-store, no-cache, must-revalidate",
+                "Pragma": "no-cache"
+            }
+        )
+    except Exception as exc:
+        logging.error(f"Report generation error: {exc}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate clinical PDF report. Please verify prediction results."
+        )
 
 
 @app.get("/metrics", tags=["Metadata"])

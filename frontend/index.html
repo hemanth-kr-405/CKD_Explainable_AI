@@ -75,11 +75,299 @@
             </div>
         </section>
 
+        <!-- Workflow Progress Stepper (Integrated Document Workflow) -->
+        <nav class="workflow-stepper-card" id="workflow-stepper" aria-label="Clinical Assessment Workflow Steps">
+            <div class="stepper-track">
+                <div class="step-item active" id="step-node-1" data-step="1">
+                    <div class="step-badge">1</div>
+                    <div class="step-label-group">
+                        <span class="step-title">Upload</span>
+                        <span class="step-sub">Medical Report</span>
+                    </div>
+                </div>
+                <div class="step-connector" id="step-conn-1"></div>
+                <div class="step-item pending" id="step-node-2" data-step="2">
+                    <div class="step-badge">2</div>
+                    <div class="step-label-group">
+                        <span class="step-title">Extract &amp; Verify</span>
+                        <span class="step-sub">Audit Parameters</span>
+                    </div>
+                </div>
+                <div class="step-connector" id="step-conn-2"></div>
+                <div class="step-item pending" id="step-node-3" data-step="3">
+                    <div class="step-badge">3</div>
+                    <div class="step-label-group">
+                        <span class="step-title">Review Inputs</span>
+                        <span class="step-sub">Pre-flight Validation</span>
+                    </div>
+                </div>
+                <div class="step-connector" id="step-conn-3"></div>
+                <div class="step-item pending" id="step-node-4" data-step="4">
+                    <div class="step-badge">4</div>
+                    <div class="step-label-group">
+                        <span class="step-title">Prediction &amp; SHAP</span>
+                        <span class="step-sub">Risk &amp; Attribution</span>
+                    </div>
+                </div>
+                <div class="step-connector" id="step-conn-4"></div>
+                <div class="step-item pending" id="step-node-5" data-step="5">
+                    <div class="step-badge">5</div>
+                    <div class="step-label-group">
+                        <span class="step-title">Clinical Report</span>
+                        <span class="step-sub">Download PDF</span>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
         <!-- Dashboard Layout: 2 Columns on Desktop -->
         <div class="dashboard-grid">
 
-            <!-- LEFT COLUMN: Patient Clinical Input Form -->
-            <section class="card input-section">
+            <!-- LEFT COLUMN: Medical Document Upload & Patient Assessment -->
+            <div class="dashboard-column left-column">
+
+                <!-- Upload Medical Report Section (Phase 2) -->
+                <section class="card upload-card" id="upload-card">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <span class="card-icon">📁</span>
+                            <div>
+                                <h2 class="card-title">Upload Medical Report</h2>
+                                <p class="card-subtitle">Upload laboratory reports or test scans (PDF, PNG, JPG/JPEG up to 10 MB)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Drag & Drop Zone -->
+                    <div class="upload-dropzone" id="upload-dropzone" tabindex="0" role="button" aria-label="Upload medical report dropzone">
+                        <input type="file" id="medical-file-input" class="file-input-hidden" accept=".pdf,image/png,image/jpeg,image/jpg" aria-hidden="true">
+                        <div class="dropzone-content" id="dropzone-prompt">
+                            <div class="dropzone-icon">📤</div>
+                            <div class="dropzone-text">
+                                <span class="dropzone-main">Drag &amp; drop medical report here, or <span class="browse-link">browse files</span></span>
+                                <span class="dropzone-hint">Supports PDF documents, PNG, and JPG images (Max 10 MB)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Progress / Status Indicator -->
+                    <div class="upload-progress-container" id="upload-progress-container" style="display: none;">
+                        <div class="progress-bar-track">
+                            <div class="progress-bar-fill" id="upload-progress-bar"></div>
+                        </div>
+                        <div class="progress-status-text" id="upload-status-text">Validating &amp; uploading document securely...</div>
+                    </div>
+
+                    <!-- Selected / Uploaded File Info Card -->
+                    <div class="uploaded-file-card" id="uploaded-file-card" style="display: none;">
+                        <div class="file-meta-group">
+                            <span class="file-type-icon" id="file-type-icon">📄</span>
+                            <div class="file-details">
+                                <div class="file-name" id="file-name-display">report.pdf</div>
+                                <div class="file-size-badge" id="file-size-display">1.2 MB</div>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <button type="button" class="btn-remove-file" id="btn-remove-file" title="Cancel and remove uploaded file">
+                                <span class="remove-icon">✕</span>
+                                <span>Remove</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Extract & Verify Action Button -->
+                    <div id="upload-extract-action" style="display: none; margin-top: 0.85rem;">
+                        <button type="button" class="btn btn-extract-report" id="btn-extract-verify">
+                            <span class="btn-icon">🔬</span>
+                            <span>Extract &amp; Verify Lab Parameters</span>
+                        </button>
+                    </div>
+
+                    <!-- Extraction Processing Status Indicator -->
+                    <div class="extraction-progress-container" id="extraction-progress-container" style="display: none; margin-top: 0.85rem;">
+                        <div class="extraction-status-header">
+                            <span class="spinner" style="width: 16px; height: 16px;"></span>
+                            <span id="extraction-status-title" style="font-weight: 600; font-size: 0.85rem;">Extracting Patient Biomarkers...</span>
+                        </div>
+                        <div class="extraction-steps-list" id="extraction-steps-list">
+                            <div class="ex-step-item in-progress" id="ex-step-1">
+                                <span class="ex-dot"></span>
+                                <span>1. Parsing document text &amp; layout coordinates</span>
+                            </div>
+                            <div class="ex-step-item pending" id="ex-step-2">
+                                <span class="ex-dot"></span>
+                                <span>2. Scanning clinical laboratory parameters (24 features)</span>
+                            </div>
+                            <div class="ex-step-item pending" id="ex-step-3">
+                                <span class="ex-dot"></span>
+                                <span>3. Cross-referencing units, ranges &amp; page snippets</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Upload Alerts -->
+                    <div id="upload-success-alert" class="alert alert-success" style="display: none;"></div>
+                    <div id="upload-error-alert" class="alert alert-danger" style="display: none;"></div>
+                </section>
+
+                <!-- Patient Data Verification Interface (Phase 5) -->
+                <section class="card verification-card" id="verification-card" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <span class="card-icon">🩺</span>
+                            <div>
+                                <h2 class="card-title">Patient Data Verification</h2>
+                                <p class="card-subtitle">Review, correct, or confirm extracted laboratory and clinical parameters</p>
+                            </div>
+                        </div>
+                        <!-- Status Badges -->
+                        <div class="verification-stats-badges" id="verification-stats-badges">
+                            <span class="vbadge vbadge-verified" id="badge-count-verified">0 Verified</span>
+                            <span class="vbadge vbadge-review" id="badge-count-review">0 Review</span>
+                            <span class="vbadge vbadge-missing" id="badge-count-missing">0 Missing</span>
+                            <span class="vbadge vbadge-conflict" id="badge-count-conflict" style="display: none;">0 Conflicts</span>
+                            <span class="vbadge vbadge-invalid" id="badge-count-invalid" style="display: none;">0 Invalid</span>
+                        </div>
+                    </div>
+
+                    <!-- Clinical Guidance Alert -->
+                    <div class="verification-guidance">
+                        <div class="guidance-icon">ℹ️</div>
+                        <div class="guidance-text">
+                            <strong>Clinical Review Protocol:</strong> Verify extracted values against original report snippets.
+                            You can edit values, change units where applicable, confirm results, or leave uncertain values unpopulated.
+                            Unpopulated fields will use the model's preprocessor training statistics. Prediction requires all present values to be clinically valid.
+                        </div>
+                    </div>
+
+                    <!-- Verification Parameter Groups Container -->
+                    <div class="verification-groups-container" id="verification-groups-container">
+                        <!-- Rendered dynamically by script.js -->
+                    </div>
+
+                    <!-- Action Controls (Requirement 10) -->
+                    <div class="verification-actions">
+                        <div class="actions-left">
+                            <button type="button" class="btn btn-secondary" id="btn-verify-cancel">
+                                <span>Cancel</span>
+                            </button>
+                            <button type="button" class="btn btn-outline" id="btn-verify-edit">
+                                <span>Edit Values</span>
+                            </button>
+                        </div>
+                        <div class="actions-right">
+                            <button type="button" class="btn btn-confirm" id="btn-verify-confirm">
+                                <span class="btn-icon">✓</span>
+                                <span>Confirm Values</span>
+                            </button>
+                            <button type="button" class="btn btn-primary" id="btn-verify-proceed">
+                                <span class="btn-icon">📋</span>
+                                <span>Proceed to Pre-Prediction Review →</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Verification Error / Success Alert -->
+                    <div id="verification-alert" class="alert" style="display: none;"></div>
+                </section>
+
+                <!-- Pre-Prediction Clinical Review Screen (Phase 8 Integrated Workflow) -->
+                <section class="card review-card" id="review-card" style="display: none;">
+                    <div class="card-header">
+                        <div class="card-title-group">
+                            <span class="card-icon">📋</span>
+                            <div>
+                                <h2 class="card-title">Pre-Prediction Clinical Review</h2>
+                                <p class="card-subtitle">Verify model inputs, check critical biomarkers, and acknowledge imputation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Summary Stats Badges -->
+                    <div class="review-stats-grid" id="review-stats-grid">
+                        <div class="review-stat-item">
+                            <span class="review-stat-num text-verified" id="rstat-verified">0</span>
+                            <span class="review-stat-lbl">Verified Values</span>
+                        </div>
+                        <div class="review-stat-item">
+                            <span class="review-stat-num text-extracted" id="rstat-extracted">0</span>
+                            <span class="review-stat-lbl">Extracted Values</span>
+                        </div>
+                        <div class="review-stat-item">
+                            <span class="review-stat-num text-manual" id="rstat-manual">0</span>
+                            <span class="review-stat-lbl">Manual Edits</span>
+                        </div>
+                        <div class="review-stat-item">
+                            <span class="review-stat-num text-imputed" id="rstat-imputed">0</span>
+                            <span class="review-stat-lbl">Imputed (Missing)</span>
+                        </div>
+                    </div>
+
+                    <!-- Critical Biomarkers Table -->
+                    <div class="review-section">
+                        <h4 class="subheading-small">Key Renal &amp; Hematology Indicators</h4>
+                        <div class="table-responsive">
+                            <table class="review-table" id="review-critical-table">
+                                <thead>
+                                    <tr>
+                                        <th>Biomarker</th>
+                                        <th>Key Role</th>
+                                        <th>Patient Value</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="review-critical-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Missing Value Warning Box -->
+                    <div class="missing-warning-box" id="review-missing-warnings">
+                        <div class="warning-title">
+                            <span class="warning-icon">⚠️</span>
+                            <strong>Missing Parameters &amp; Imputation Notice:</strong>
+                        </div>
+                        <p id="review-missing-explanation" class="warning-desc">
+                            The following parameters were not detected in the report: <strong id="review-missing-list">None</strong>.
+                            These will <strong>NOT</strong> be fabricated with arbitrary zeros. The model's learned median/mode training statistics will be transparently applied.
+                        </p>
+                    </div>
+
+                    <!-- Pre-flight Validation Checklist -->
+                    <div class="preflight-status-box" id="review-preflight-box">
+                        <div class="preflight-item" id="pf-bounds">
+                            <span class="pf-icon">✓</span>
+                            <span>All populated numeric values are within physiological clinical bounds.</span>
+                        </div>
+                        <div class="preflight-item" id="pf-categoricals">
+                            <span class="pf-icon">✓</span>
+                            <span>Categorical observations conform to training taxonomy.</span>
+                        </div>
+                        <div class="preflight-item" id="pf-conflicts">
+                            <span class="pf-icon">✓</span>
+                            <span>No unresolved conflicting values across document sections.</span>
+                        </div>
+                    </div>
+
+                    <!-- Review Actions -->
+                    <div class="review-actions">
+                        <button type="button" class="btn btn-secondary" id="btn-review-back">
+                            <span>← Back to Verification</span>
+                        </button>
+                        <button type="button" class="btn btn-primary btn-lg" id="btn-review-confirm-predict">
+                            <span class="btn-icon">⚡</span>
+                            <span>Confirm &amp; Run CKD Prediction</span>
+                        </button>
+                    </div>
+
+                    <!-- Review Alert -->
+                    <div id="review-alert" class="alert alert-danger" style="display: none;"></div>
+                </section>
+
+                <!-- Patient Clinical Input Form -->
+                <section class="card input-section" id="input-section">
                 <div class="card-header">
                     <div class="card-title-group">
                         <span class="card-icon">📋</span>
@@ -311,9 +599,9 @@
 
                     <!-- Form Controls -->
                     <div class="form-actions">
-                        <button type="submit" class="btn btn-primary" id="btn-submit">
+                        <button type="submit" class="btn btn-primary btn-proceed" id="btn-submit" data-action="proceed" data-testid="btn-proceed">
                             <span class="btn-icon">⚡</span>
-                            <span>Predict & Explain</span>
+                            <span>Proceed to Prediction</span>
                         </button>
                         <button type="button" class="btn btn-secondary" id="btn-reset">
                             <span>Reset Form</span>
@@ -325,6 +613,7 @@
 
                 </form>
             </section>
+            </div>
 
             <!-- RIGHT COLUMN: Prediction & SHAP Explanation Results -->
             <section class="card results-section" id="results-panel">
@@ -368,6 +657,40 @@
                         </div>
                     </div>
 
+                    <!-- Clinical Distinction & Medical Governance Card (Phase 6) -->
+                    <div class="clinical-distinction-card" id="clinical-distinction-card" style="display: none;">
+                        <div class="distinction-header">
+                            <span class="distinction-icon">⚖️</span>
+                            <span class="distinction-title">Clinical &amp; Algorithmic Boundary Definition</span>
+                        </div>
+                        <div class="distinction-grid">
+                            <div class="distinction-item">
+                                <span class="distinction-tag tag-pred">Model Prediction</span>
+                                <p class="distinction-desc" id="distinction-prediction">Algorithmic DecisionTree classification</p>
+                            </div>
+                            <div class="distinction-item">
+                                <span class="distinction-tag tag-prob">Model Probability</span>
+                                <p class="distinction-desc" id="distinction-probability">Uncalibrated leaf purity proportion (not patient risk)</p>
+                            </div>
+                            <div class="distinction-item">
+                                <span class="distinction-tag tag-diag">Clinical Diagnosis</span>
+                                <p class="distinction-desc" id="distinction-diagnosis">CANNOT be established by machine learning. Requires formal clinical evaluation by a physician.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verified Provenance & Imputation Card (Phase 6) -->
+                    <div class="provenance-summary-card" id="provenance-summary-card" style="display: none;">
+                        <div class="provenance-header">
+                            <span class="provenance-icon">📋</span>
+                            <span class="provenance-title">Patient Data Provenance &amp; Preprocessing Integrity</span>
+                        </div>
+                        <div class="provenance-badges" id="provenance-badges">
+                            <!-- Populated dynamically: Verified count, Extracted count, Manual count, Imputed count -->
+                        </div>
+                        <p class="provenance-note" id="provenance-note"></p>
+                    </div>
+
                     <!-- Local SHAP Explanation Breakdown -->
                     <div class="shap-breakdown-card">
                         <div class="card-title-group">
@@ -382,6 +705,32 @@
                         <div class="shap-baseline-pill">
                             <span>Training Baseline Expected Score ($E[f(x)]$): <strong id="shap-base-val">0.500</strong></span>
                             <span>Patient Decision Score ($f(x)$): <strong id="shap-final-val">1.000</strong></span>
+                        </div>
+
+                        <!-- SHAP Scale & Directionality Guidance Callout (Phase 7) -->
+                        <div class="shap-guidance-box" id="shap-guidance-box">
+                            <div class="guidance-header">
+                                <span class="guidance-icon">ℹ️</span>
+                                <strong>Attribution Scale &amp; Directionality Principles</strong>
+                            </div>
+                            <div class="guidance-content">
+                                <div class="guidance-item">
+                                    <span class="guidance-bullet text-risk">▶ Positive SHAP (+&phi;):</span>
+                                    <span>Pushes the explained model output toward <strong>Class 1: Chronic Kidney Disease (CKD)</strong>.</span>
+                                </div>
+                                <div class="guidance-item">
+                                    <span class="guidance-bullet text-protective">▶ Negative SHAP (-&phi;):</span>
+                                    <span>Pushes the explained model output toward <strong>Class 0: Non-CKD (Healthy)</strong>.</span>
+                                </div>
+                                <div class="guidance-item">
+                                    <span class="guidance-bullet">▶ Scale &amp; Baseline:</span>
+                                    <span>Operating on the <strong>Probability Scale [0.0 to 1.0]</strong>. The background cohort expectation is <code id="guidance-base-val">0.625</code>; contributions sum to patient decision score <code id="guidance-final-val">1.000</code>.</span>
+                                </div>
+                                <div class="guidance-item guidance-caution">
+                                    <span class="guidance-bullet text-amber">⚠️ Medical Non-Causality:</span>
+                                    <span>SHAP values quantify statistical attributions in the decision tree algorithm. They do <strong>NOT</strong> prove biological causation or patient clinical risk factors.</span>
+                                </div>
+                            </div>
                         </div>
 
                         <!-- Top Risk Drivers (Elevating Risk) -->
@@ -404,6 +753,49 @@
                             </div>
                         </div>
 
+                        <!-- Interactive Horizontal Feature Contribution Chart (Phase 7) -->
+                        <div class="horizontal-chart-card" id="shap-horizontal-chart-container">
+                            <div class="chart-header">
+                                <span class="chart-icon">📊</span>
+                                <div>
+                                    <h4 class="subheading-small">Horizontal Feature-Contribution Breakdown</h4>
+                                    <p class="subtext">Top influential features pushing toward CKD (red right) or Non-CKD (green left)</p>
+                                </div>
+                            </div>
+                            <div class="horizontal-chart-body" id="shap-horizontal-chart">
+                                <!-- Populated dynamically by script.js -->
+                            </div>
+                        </div>
+
+                        <!-- Comprehensive Feature-Value Attribution Table (Phase 7) -->
+                        <div class="feature-table-card" id="shap-feature-table-container">
+                            <div class="table-card-header">
+                                <div>
+                                    <h4 class="subheading-small">Complete 24-Feature Attribution Matrix</h4>
+                                    <p class="subtext">Examine exact patient values, model-transformed inputs, and directional attributions</p>
+                                </div>
+                                <button type="button" class="btn btn-outline btn-sm" id="btn-toggle-shap-table">
+                                    <span>Show All 24 Features</span>
+                                </button>
+                            </div>
+                            <div class="table-responsive" id="shap-table-wrapper" style="display: none;">
+                                <table class="shap-table" id="shap-attribution-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Feature</th>
+                                            <th>Patient Value</th>
+                                            <th>Model Input</th>
+                                            <th>SHAP Value (&phi;)</th>
+                                            <th>Directional Impact</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="shap-table-body">
+                                        <!-- Populated dynamically by script.js -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
                         <!-- Waterfall Plot Image View -->
                         <div class="waterfall-plot-card" id="waterfall-container" style="display: none;">
                             <h4 class="subheading-small">SHAP Waterfall Visualization</h4>
@@ -411,6 +803,32 @@
                             <div class="plot-frame">
                                 <img id="waterfall-img" src="" alt="SHAP Patient Waterfall Plot">
                             </div>
+                        </div>
+
+                        <!-- Report Actions & Workflow Restart (Phase 8) -->
+                        <div class="report-actions-card" id="report-actions-card">
+                            <div class="report-actions-header">
+                                <span class="report-actions-icon">📑</span>
+                                <div>
+                                    <h4 class="subheading-small">Clinical Decision Support Report &amp; Workflow</h4>
+                                    <p class="subtext">Download formal explainability documentation or initiate a new patient assessment</p>
+                                </div>
+                            </div>
+                            <div class="report-buttons-row">
+                                <button type="button" class="btn btn-primary" id="btn-download-pdf-report">
+                                    <span class="btn-icon">📥</span>
+                                    <span>Download Clinical Report (PDF)</span>
+                                </button>
+                                <button type="button" class="btn btn-secondary" id="btn-print-summary">
+                                    <span class="btn-icon">🖨️</span>
+                                    <span>Print / Save View</span>
+                                </button>
+                                <button type="button" class="btn btn-outline" id="btn-restart-workflow">
+                                    <span class="btn-icon">🔄</span>
+                                    <span>Upload Another Document</span>
+                                </button>
+                            </div>
+                            <div id="report-download-status" class="subtext text-muted" style="margin-top: 0.5rem; display: none;"></div>
                         </div>
 
                     </div>

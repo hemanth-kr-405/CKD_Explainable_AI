@@ -1,26 +1,54 @@
-@"
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 venv/
 .venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
 # Environment variables and secrets
 .env
 .env.*
 !.env.example
 
-# IDE
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# IDE & Editor Configs
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 
-# Temporary files
+# Operating System & Temporary Files
 *.log
 .DS_Store
 Thumbs.db
-"@ | Set-Content .gitignore
-
-git add .gitignore
-git commit -m "Resolve .gitignore merge conflict"
-git push -u origin main
+desktop.ini
+scratch/

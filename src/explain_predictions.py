@@ -68,6 +68,13 @@ class CKDExplainer:
         logging.info(f"Loading trained Decision Tree from {model_path}...")
         self.model: DecisionTreeClassifier = joblib.load(model_path)
 
+        # Incompatibility check: Ensure model is supported by TreeExplainer
+        if not hasattr(self.model, "predict") or not hasattr(self.model, "tree_"):
+            raise TypeError(
+                f"Incompatible model type '{type(self.model).__name__}'. "
+                "CKDExplainer requires a tree-based classifier supported by SHAP TreeExplainer."
+            )
+
         logging.info(f"Loading fitted preprocessor from {preprocessor_path}...")
         self.preprocessor: CKDPreprocessor = joblib.load(preprocessor_path)
 
@@ -81,7 +88,11 @@ class CKDExplainer:
 
         # Initialize SHAP TreeExplainer (exact polynomial-time algorithm for decision trees)
         logging.info("Initializing SHAP TreeExplainer...")
-        self.explainer = shap.TreeExplainer(self.model)
+        try:
+            self.explainer = shap.TreeExplainer(self.model)
+        except Exception as e:
+            raise RuntimeError(f"Failed to initialize SHAP TreeExplainer with model: {e}") from e
+
         self.feature_names = list(ALL_FEATURE_NAMES)
         self.clinical_labels = [CLINICAL_FEATURE_LABELS.get(f, f) for f in self.feature_names]
 
@@ -90,6 +101,17 @@ class CKDExplainer:
         Computes SHAP Explanation object and slices to the positive CKD class (Class 1).
         Assigns human-readable clinical feature labels.
         """
+        if not isinstance(X_df, pd.DataFrame):
+            X_df = pd.DataFrame(X_df, columns=self.feature_names)
+
+        # Verify exact feature schema & order
+        if list(X_df.columns) != self.feature_names:
+            raise ValueError(
+                f"Feature ordering mismatch for SHAP explanation. "
+                f"Expected {len(self.feature_names)} features in order {self.feature_names}, "
+                f"got {list(X_df.columns)}"
+            )
+
         raw_exp = self.explainer(X_df)
         
         # Binary classification in TreeExplainer yields shape (n_samples, n_features, n_classes)
@@ -186,9 +208,16 @@ class CKDExplainer:
         if isinstance(patient_data, pd.Series):
             patient_dict = patient_data.to_dict()
         elif isinstance(patient_data, pd.DataFrame):
+            if patient_data.empty:
+                raise ValueError("patient_data DataFrame cannot be empty.")
             patient_dict = patient_data.iloc[0].to_dict()
-        else:
+        elif isinstance(patient_data, dict):
             patient_dict = dict(patient_data)
+        else:
+            raise TypeError(
+                f"Unsupported patient_data type: '{type(patient_data).__name__}'. "
+                "CKDExplainer expects a dictionary, pd.Series, or pd.DataFrame of clinical parameters."
+            )
 
         X_transformed = self.preprocessor.transform_single(patient_dict)
 
@@ -234,15 +263,23 @@ class CKDExplainer:
                 "unit": FEATURE_METADATA.get(feat, {}).get("unit", "")
             })
 
-        # Rank factors: Top risk factors (positive SHAP) and top protective factors (negative SHAP)
+        # Rank factors:
+        # Top risk drivers (pushing toward CKD / positive SHAP)
         risk_factors = sorted(
             [f for f in feature_contributions if f["shap_value"] > 0],
             key=lambda x: x["shap_value"],
             reverse=True
         )
+        # Top protective factors (pushing toward Non-CKD / negative SHAP)
         protective_factors = sorted(
             [f for f in feature_contributions if f["shap_value"] < 0],
             key=lambda x: x["shap_value"]
+        )
+        # Most influential overall drivers ranked by absolute magnitude (|SHAP|)
+        most_influential_factors = sorted(
+            feature_contributions,
+            key=lambda x: abs(x["shap_value"]),
+            reverse=True
         )
 
         # 5. Generate Waterfall Plot
@@ -251,7 +288,7 @@ class CKDExplainer:
             fig = plt.figure(figsize=(9, 6), dpi=300)
             shap.plots.waterfall(patient_exp, max_display=10, show=False)
             plt.title(
-                f"SHAP Waterfall: Patient Risk Breakdown (Prediction: {TARGET_NAMES[pred_class]})",
+                f"SHAP Waterfall: Patient Attribution Breakdown (Prediction: {TARGET_NAMES[pred_class]})",
                 fontsize=11, fontweight="bold", pad=15
             )
             plt.tight_layout()
@@ -280,6 +317,22 @@ class CKDExplainer:
                 "base_value": round(base_value, 4),
                 "patient_model_output": round(model_output_score, 4),
                 "explanation_target": "Probability of Chronic Kidney Disease (CKD)",
+                "output_scale": "Probability Scale [0.0 to 1.0]",
+                "scale_interpretation": (
+                    "TreeExplainer operates directly on the probability scale of the leaf nodes for DecisionTreeClassifier. "
+                    "The base value E[f(x)] represents the background training cohort prevalence of CKD, and the sum of "
+                    "SHAP attributions reconstructs the predicted leaf probability."
+                ),
+                "directionality_guide": {
+                    "target_class": "Class 1: Chronic Kidney Disease (CKD)",
+                    "positive_contribution": "A positive SHAP value (+phi) increases the predicted score toward Class 1 (Chronic Kidney Disease).",
+                    "negative_contribution": "A negative SHAP value (-phi) decreases the predicted score toward Class 0 (Non-CKD).",
+                    "anchor_note": "The exact directional effect is anchored to the positive class (CKD) being explained."
+                },
+                "causality_caveat": (
+                    "Feature attributions reflect learned statistical associations in the decision tree algorithm. "
+                    "They do NOT prove biological causation or identify clinical risk factors."
+                ),
                 "interpretation_guide": (
                     "Positive SHAP values indicate features pushing the prediction higher toward CKD. "
                     "Negative SHAP values indicate features pushing the prediction lower toward Non-CKD. "
@@ -288,11 +341,13 @@ class CKDExplainer:
                 ),
                 "top_risk_drivers": risk_factors[:5],
                 "top_protective_factors": protective_factors[:5],
+                "most_influential_features": most_influential_factors[:10],
                 "all_feature_contributions": feature_contributions
             },
             "disclaimer": (
                 "Educational Decision Support: SHAP explanations explain algorithmic reasoning. "
-                "Feature attributions are statistical associations learned by the model and do NOT constitute biological causation or a confirmed medical diagnosis."
+                "Feature attributions are statistical associations learned by the model and do NOT constitute "
+                "biological causation, patient clinical risk factors, or a confirmed medical diagnosis."
             )
         }
 
