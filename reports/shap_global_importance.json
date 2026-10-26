@@ -6,92 +6,112 @@
         {
             "feature": "hemo",
             "clinical_label": "Hemoglobin (g/dL)",
-            "mean_abs_shap": 0.2352
-        },
-        {
-            "feature": "sg",
-            "clinical_label": "Specific Gravity (density)",
-            "mean_abs_shap": 0.1686
-        },
-        {
-            "feature": "htn",
-            "clinical_label": "Hypertension",
-            "mean_abs_shap": 0.0755
+            "mean_abs_shap": 0.0869
         },
         {
             "feature": "sc",
             "clinical_label": "Serum Creatinine (mg/dL)",
-            "mean_abs_shap": 0.0425
+            "mean_abs_shap": 0.0841
         },
         {
-            "feature": "rbcc",
-            "clinical_label": "Red Blood Cell Count (millions/cmm)",
-            "mean_abs_shap": 0.0387
+            "feature": "sg",
+            "clinical_label": "Specific Gravity (density)",
+            "mean_abs_shap": 0.0803
         },
         {
             "feature": "pcv",
             "clinical_label": "Packed Cell Volume (%)",
-            "mean_abs_shap": 0.017
+            "mean_abs_shap": 0.064
         },
         {
-            "feature": "age",
-            "clinical_label": "Age (years)",
-            "mean_abs_shap": 0.0
+            "feature": "rbcc",
+            "clinical_label": "Red Blood Cell Count (millions/cmm)",
+            "mean_abs_shap": 0.0417
         },
         {
-            "feature": "bp",
-            "clinical_label": "Blood Pressure (mm/Hg)",
-            "mean_abs_shap": 0.0
+            "feature": "dm",
+            "clinical_label": "Diabetes Mellitus",
+            "mean_abs_shap": 0.0355
+        },
+        {
+            "feature": "htn",
+            "clinical_label": "Hypertension",
+            "mean_abs_shap": 0.0318
         },
         {
             "feature": "al",
             "clinical_label": "Albumin (grade (0-5))",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "su",
-            "clinical_label": "Sugar (grade (0-5))",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.029
         },
         {
             "feature": "bgr",
             "clinical_label": "Blood Glucose Random (mg/dL)",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.0138
         },
         {
             "feature": "bu",
             "clinical_label": "Blood Urea (mg/dL)",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.0127
+        },
+        {
+            "feature": "appet",
+            "clinical_label": "Appetite",
+            "mean_abs_shap": 0.0089
         },
         {
             "feature": "sod",
             "clinical_label": "Serum Sodium (mEq/L)",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "pot",
-            "clinical_label": "Serum Potassium (mEq/L)",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "wbcc",
-            "clinical_label": "White Blood Cell Count (cells/cumm)",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "rbc",
-            "clinical_label": "Red Blood Cells",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.0078
         },
         {
             "feature": "pc",
             "clinical_label": "Pus Cell",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.0064
+        },
+        {
+            "feature": "bp",
+            "clinical_label": "Blood Pressure (mm/Hg)",
+            "mean_abs_shap": 0.0063
+        },
+        {
+            "feature": "su",
+            "clinical_label": "Sugar (grade (0-5))",
+            "mean_abs_shap": 0.0039
+        },
+        {
+            "feature": "rbc",
+            "clinical_label": "Red Blood Cells",
+            "mean_abs_shap": 0.0034
+        },
+        {
+            "feature": "pot",
+            "clinical_label": "Serum Potassium (mEq/L)",
+            "mean_abs_shap": 0.0024
+        },
+        {
+            "feature": "age",
+            "clinical_label": "Age (years)",
+            "mean_abs_shap": 0.002
+        },
+        {
+            "feature": "ane",
+            "clinical_label": "Anemia",
+            "mean_abs_shap": 0.002
+        },
+        {
+            "feature": "wbcc",
+            "clinical_label": "White Blood Cell Count (cells/cumm)",
+            "mean_abs_shap": 0.0014
+        },
+        {
+            "feature": "pe",
+            "clinical_label": "Pedal Edema",
+            "mean_abs_shap": 0.0013
         },
         {
             "feature": "pcc",
             "clinical_label": "Pus Cell Clumps",
-            "mean_abs_shap": 0.0
+            "mean_abs_shap": 0.0002
         },
         {
             "feature": "ba",
@@ -99,28 +119,8 @@
             "mean_abs_shap": 0.0
         },
         {
-            "feature": "dm",
-            "clinical_label": "Diabetes Mellitus",
-            "mean_abs_shap": 0.0
-        },
-        {
             "feature": "cad",
             "clinical_label": "Coronary Artery Disease",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "appet",
-            "clinical_label": "Appetite",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "pe",
-            "clinical_label": "Pedal Edema",
-            "mean_abs_shap": 0.0
-        },
-        {
-            "feature": "ane",
-            "clinical_label": "Anemia",
             "mean_abs_shap": 0.0
         }
     ],

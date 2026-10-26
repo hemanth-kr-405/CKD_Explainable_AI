@@ -33,13 +33,15 @@ def test_saved_model_artifact_exists():
     assert MODEL_ARTIFACT_PATH.stat().st_size > 0, "Model artifact file is empty"
 
 
+from sklearn.ensemble import RandomForestClassifier
+
 def test_saved_metrics_exist_and_valid():
     """Verify that the evaluation metrics file exists and contains valid metrics."""
     assert METRICS_ARTIFACT_PATH.exists(), f"Metrics file not found at {METRICS_ARTIFACT_PATH}"
     with open(METRICS_ARTIFACT_PATH, "r", encoding="utf-8") as f:
         metrics = json.load(f)
 
-    assert metrics["algorithm"] == "DecisionTreeClassifier"
+    assert metrics["algorithm"] in ["RandomForestClassifier", "DecisionTreeClassifier"]
     assert "test_metrics" in metrics
     assert "accuracy" in metrics["test_metrics"]
     assert "precision" in metrics["test_metrics"]
@@ -53,8 +55,8 @@ def test_saved_metrics_exist_and_valid():
 
 def test_model_reload_and_properties():
     """Verify model can be reloaded and maintains expected tree properties and feature count."""
-    model: DecisionTreeClassifier = joblib.load(MODEL_ARTIFACT_PATH)
-    assert isinstance(model, DecisionTreeClassifier), f"Expected DecisionTreeClassifier, got {type(model)}"
+    model = joblib.load(MODEL_ARTIFACT_PATH)
+    assert isinstance(model, (RandomForestClassifier, DecisionTreeClassifier)), f"Expected tree classifier, got {type(model)}"
     assert model.n_features_in_ == len(ALL_FEATURE_NAMES), (
         f"Model feature count {model.n_features_in_} does not match expected {len(ALL_FEATURE_NAMES)}"
     )

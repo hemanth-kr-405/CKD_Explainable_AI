@@ -129,10 +129,17 @@ def check_tesseract_availability() -> Tuple[bool, Optional[str]]:
     return False, instructions
 
 
+_WIN_OCR_AVAILABLE_CACHE: Optional[bool] = None
+
+
 def check_windows_ocr_availability() -> Tuple[bool, Optional[str]]:
     """
     Checks whether the native Windows Media OCR runtime is accessible via PowerShell.
+    Caches successful availability to avoid repeated subprocess startup overhead.
     """
+    global _WIN_OCR_AVAILABLE_CACHE
+    if _WIN_OCR_AVAILABLE_CACHE is True:
+        return True, None
     if sys.platform != "win32":
         return False, "Windows native OCR is only available on Windows platforms."
     if not WIN_OCR_HELPER_PATH.is_file():
@@ -142,9 +149,10 @@ def check_windows_ocr_availability() -> Tuple[bool, Optional[str]]:
             ["powershell", "-NoProfile", "-Command", "[void][Windows.Media.Ocr.OcrEngine, Windows.Media.Ocr, ContentType = WindowsRuntime]; Write-Output 'OK'"],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=15
         )
         if res.returncode == 0 and "OK" in res.stdout:
+            _WIN_OCR_AVAILABLE_CACHE = True
             return True, None
     except Exception as e:
         return False, f"Windows Media OCR probe failed: {e}"

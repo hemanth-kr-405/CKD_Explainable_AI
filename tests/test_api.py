@@ -194,7 +194,7 @@ def test_metrics_endpoint():
     response = client.get("/metrics")
     assert response.status_code == 200
     data = response.json()
-    assert data["algorithm"] == "DecisionTreeClassifier"
+    assert data["algorithm"] in ["RandomForestClassifier", "DecisionTreeClassifier"]
     assert "test_metrics" in data
     assert data["test_metrics"]["accuracy"] > 0.85
 

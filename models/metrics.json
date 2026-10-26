@@ -1,13 +1,17 @@
 {
-    "algorithm": "DecisionTreeClassifier",
-    "timestamp_utc": "2026-10-20T07:15:41.120990+00:00",
+    "algorithm": "RandomForestClassifier",
+    "baseline_algorithm": "DecisionTreeClassifier",
+    "model_selection_status": "Selected as primary prediction model following Phase 2 experimental benchmarking (highest cross-validation sensitivity of 99.50% vs 96.00% baseline).",
+    "clinical_validation_disclaimer": "Internal evaluation on single-center cohort (N=400). Does NOT constitute external clinical validation. 100% test accuracy on held-out split (N=80) is an internal empirical benchmark and is NOT a guarantee of performance on future unseen clinical patients.",
+    "timestamp_utc": "2026-10-26T14:27:00.000000+00:00",
     "random_state": 42,
     "hyperparameters": {
-        "criterion": "gini",
-        "max_depth": 5,
-        "min_samples_split": 4,
-        "min_samples_leaf": 2,
-        "class_weight": "balanced"
+        "n_estimators": 100,
+        "max_depth": 3,
+        "min_samples_split": 2,
+        "min_samples_leaf": 1,
+        "class_weight": "balanced",
+        "random_state": 42
     },
     "dataset_splits": {
         "train_samples": 320,
@@ -15,40 +19,68 @@
         "num_features": 24
     },
     "cross_validation_5fold": {
-        "cv_accuracy_mean": 0.95,
-        "cv_accuracy_std": 0.023,
-        "cv_recall_mean": 0.96,
-        "cv_recall_std": 0.03,
-        "cv_f1_mean": 0.9599,
-        "cv_f1_std": 0.0186,
-        "cv_roc_auc_mean": 0.9525,
-        "cv_roc_auc_std": 0.0215
+        "cv_accuracy_mean": 0.9906,
+        "cv_accuracy_std": 0.0125,
+        "cv_recall_mean": 0.995,
+        "cv_recall_std": 0.01,
+        "cv_specificity_mean": 0.9833,
+        "cv_specificity_std": 0.0204,
+        "cv_precision_mean": 0.9901,
+        "cv_precision_std": 0.0121,
+        "cv_f1_mean": 0.9925,
+        "cv_f1_std": 0.01,
+        "cv_roc_auc_mean": 0.9994,
+        "cv_roc_auc_std": 0.0008
     },
     "test_metrics": {
-        "accuracy": 0.9625,
+        "accuracy": 1.0,
         "precision": 1.0,
-        "recall_sensitivity": 0.94,
+        "recall_sensitivity": 1.0,
         "specificity": 1.0,
-        "f1_score": 0.9691,
-        "roc_auc": 0.989,
+        "f1_score": 1.0,
+        "roc_auc": 1.0,
         "confusion_matrix": {
             "true_negatives": 30,
             "false_positives": 0,
-            "false_negatives": 3,
-            "true_positives": 47
+            "false_negatives": 0,
+            "true_positives": 50
         }
     },
-    "tree_depth": 5,
-    "n_leaves": 10,
-    "gini_feature_importances": {
-        "hemo": 0.7455,
-        "sg": 0.1668,
-        "rbcc": 0.0313,
-        "htn": 0.0298,
-        "pcv": 0.0191,
-        "sc": 0.0076,
-        "pcc": 0.0,
-        "sod": 0.0
+    "baseline_comparison": {
+        "decision_tree_baseline": {
+            "test_accuracy": 0.9625,
+            "test_recall": 0.94,
+            "test_specificity": 1.0,
+            "test_f1": 0.9691,
+            "cv_recall_mean": 0.96,
+            "cv_accuracy_mean": 0.95
+        }
+    },
+    "feature_importances": {
+        "hemo": 0.2087,
+        "sc": 0.1566,
+        "pcv": 0.1525,
+        "sg": 0.1308,
+        "rbcc": 0.1046,
+        "htn": 0.0566,
+        "dm": 0.0416,
+        "al": 0.0392,
+        "bu": 0.027,
+        "bgr": 0.0155,
+        "appet": 0.0153,
+        "pc": 0.0118,
+        "bp": 0.0096,
+        "sod": 0.0084,
+        "su": 0.0049,
+        "age": 0.0041,
+        "rbc": 0.0031,
+        "pot": 0.003,
+        "ane": 0.003,
+        "wbcc": 0.0022,
+        "pe": 0.0013,
+        "pcc": 0.0003,
+        "ba": 0.0,
+        "cad": 0.0
     },
     "feature_names_order": [
         "age",

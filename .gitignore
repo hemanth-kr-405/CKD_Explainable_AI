@@ -52,3 +52,7 @@ htmlcov/
 Thumbs.db
 desktop.ini
 scratch/
+
+# Temporary Patient Uploads & Ephemeral Sessions
+data/temp_uploads/
+temp_uploads/

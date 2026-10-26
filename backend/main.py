@@ -335,15 +335,17 @@ async def health_check():
     try:
         explainer = get_explainer()
         explainer_ready = explainer is not None
+        algo_name = type(explainer.model).__name__ if explainer_ready else "RandomForestClassifier"
     except Exception:
         explainer_ready = False
+        algo_name = "Unavailable"
 
     return HealthResponse(
         status="healthy" if explainer_ready else "unhealthy",
         model_loaded=MODEL_ARTIFACT_PATH.exists(),
         preprocessor_loaded=PREPROCESSOR_ARTIFACT_PATH.exists(),
         explainer_ready=explainer_ready,
-        algorithm="DecisionTreeClassifier",
+        algorithm=algo_name,
         features_count=len(ALL_FEATURE_NAMES),
         version="1.0.0"
     )
@@ -862,10 +864,11 @@ async def predict_verified_parameters(request: VerificationSubmissionRequest):
     ckd_prob = raw_result["prediction"]["ckd_probability"]
     non_ckd_prob = raw_result["prediction"]["non_ckd_probability"]
 
+    model_name = type(explainer.model).__name__ if explainer else "RandomForestClassifier"
     clinical_distinction = ClinicalDistinction(
-        model_prediction=f"DecisionTree algorithmic classification: {pred_label} (Class {pred_code})",
+        model_prediction=f"{model_name} / DecisionTree algorithmic classification: {pred_label} (Class {pred_code})",
         model_probability=(
-            f"Terminal leaf proportion: {ckd_prob * 100:.1f}% for CKD, {non_ckd_prob * 100:.1f}% for Non-CKD. "
+            f"Terminal leaf proportion ({model_name} ensemble probability): {ckd_prob * 100:.1f}% for CKD, {non_ckd_prob * 100:.1f}% for Non-CKD. "
             f"This represents training sample leaf purity, NOT an individual patient's clinical risk of disease."
         ),
         clinical_diagnosis=(

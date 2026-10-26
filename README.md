@@ -2,11 +2,13 @@
 
 An end-to-end, reproducible Machine Learning and Explainable AI (XAI) clinical decision-support system predicting Chronic Kidney Disease (CKD) risk and delivering transparent, local, and global feature attributions using **SHAP (SHapley Additive exPlanations)**.
 
+The system incorporates medical document ingestion (PDF, PNG, JPG/JPEG), OCR text extraction, automated clinical parameter mapping, interactive human-in-the-loop patient data verification, ensemble prediction with **Random Forest**, mathematical SHAP attributions, and vector PDF clinical report generation.
+
 ---
 
 > [!IMPORTANT]
 > **Medical & Academic Disclaimer**:  
-> *"This software is an experimental Machine Learning research system developed for academic demonstration and clinical decision-support research. It is NOT a diagnostic tool and does NOT determine clinical CKD stages (Stage 1–5). Model outputs reflect statistical feature attributions and training-sample leaf purity, not calibrated clinical risk or biological causation. It must never replace professional clinical judgment, laboratory testing, or formal diagnosis by a certified medical practitioner."*
+> *"This software is an experimental Machine Learning research system developed for academic demonstration and clinical decision-support research. It is NOT a medical device, does NOT constitute a confirmed medical diagnosis, and does NOT determine clinical CKD stages (Stage 1–5). Model outputs reflect statistical feature attributions and training-sample empirical distributions, not calibrated clinical risk or biological causation. Software tests and high empirical metrics on retrospective cohorts do not substitute for clinical safety or external clinical validation. It must never replace professional clinical judgment, laboratory testing, or formal diagnosis by a certified medical practitioner."*
 
 ---
 
@@ -17,39 +19,48 @@ An end-to-end, reproducible Machine Learning and Explainable AI (XAI) clinical d
 - **Biomarker Synthesis Challenge**: Early nephrology diagnosis relies on subtle multivariate interactions across blood chemistry (creatinine, blood urea), electrolyte balance (sodium, potassium), urinalysis (specific gravity, albuminuria), and comorbidities (hypertension, diabetes mellitus).
 - **The "Black-Box" Dilemma in Healthcare AI**: While machine learning models can detect non-linear diagnostic patterns, high predictive accuracy alone is insufficient for clinical adoption. Clinicians, regulatory bodies, and patients cannot ethically or legally trust opaque predictions without interpretable, patient-specific explanations.
 - **Data Contamination in Literature**: Many published healthcare models suffer from subtle data leakage (fitting imputation statistics on entire datasets before splitting), resulting in overly optimistic results that fail in practical deployment.
+- **Document Ingestion & Verification Gap**: Real-world clinical laboratories provide scanned paper charts, JPG/PNG images, and digital PDFs. An effective decision-support system must reliably extract parameters, preserve provenance, allow clinician review, and isolate prediction from unverified OCR artifacts.
 
 ---
 
 ## 2. Objectives
 
 1. **Leak-Free Data Preprocessing**: Develop a robust scikit-learn compatible preprocessing pipeline where all imputation statistics (median for skewed continuous variables, mode for discrete categoricals) and binary encodings are fitted strictly on the training partition ($N=320$) and applied without modification to test and inference data.
-2. **Interpretable Model Training**: Train an inherently interpretable Decision Tree Classifier configured with balanced class weighting (`class_weight='balanced'`) and depth constraints (`max_depth=5`) to maximize clinical sensitivity for early disease detection while preventing overfitting.
-3. **Empirical Evaluation & Benchmarking**: Evaluate performance rigorously on a strictly held-out test cohort ($N=80$) across accuracy, precision, recall (sensitivity), specificity, F1-score, confusion matrix, ROC-AUC, and 5-fold cross-validation, benchmarking against Dummy, Logistic Regression, and Random Forest baselines.
-4. **Game-Theoretic XAI with SHAP**: Integrate `shap.TreeExplainer` to compute exact, polynomial-time Shapley attributions in probability space, providing cohort-level global rankings and patient-level waterfall plots satisfying the mathematical additivity property ($E[f(x)] + \sum \phi_i = f(x)$).
-5. **Production Microservice Architecture**: Develop an asynchronous FastAPI backend with strict Pydantic v2 data validation, physiological bounds checking, and field-specific error isolation.
-6. **Accessible Healthcare Dashboard**: Build a responsive, zero-dependency HTML5/Vanilla CSS/JavaScript dashboard featuring one-click clinical presets, probability calibration disclosures, and dynamic XAI visualizations.
-7. **Production Containerization & Deployment**: Containerize the complete application using Docker and provide deployment configuration for cloud hosting platforms (Render, Railway, Hugging Face Spaces) with complete environment portability.
+2. **Empirical Algorithm Comparison & Benchmarking**: Rigorously compare four distinct algorithms (**Decision Tree baseline**, **Logistic Regression**, **Random Forest**, and **XGBoost**) using stratified 5-fold cross-validation and held-out test evaluation to select the safest and most reliable clinical screening model.
+3. **Random Forest Selection**: Integrate the top-performing Random Forest Classifier configured with balanced class weighting (`class_weight='balanced'`) and constrained depth (`max_depth=3`) to maximize clinical sensitivity (minimizing false negatives) while preventing ensemble overfitting.
+4. **Game-Theoretic XAI with SHAP**: Integrate `shap.TreeExplainer` to compute exact, polynomial-time Shapley attributions in probability space, providing cohort-level global rankings and patient-level waterfall plots satisfying mathematical additivity ($E[f(x)] + \sum \phi_i = f(x)$).
+5. **Secure Medical Document Processing**: Support document upload (PDF, PNG, JPG/JPEG) with binary magic byte validation, ephemeral session storage, native OCR text extraction, and deterministic clinical parameter extraction.
+6. **Interactive Human-in-the-Loop Verification**: Provide a structured verification interface where clinicians can review extracted values, verify bounds, resolve conflicting readings, and confirm provenance before triggering prediction.
+7. **Comprehensive Vector PDF Reporting**: Generate high-fidelity, 3-page clinical decision-support PDF reports detailing patient demographics, prediction outcomes, leaf probabilities, complete 24-parameter provenance accounting, quantitative SHAP attributions, and regulatory disclaimers.
+8. **Reversible Baseline Architecture**: Preserve the original trained Decision Tree model and evaluation artifacts for instantaneous rollback.
 
 ---
 
-## 3. System Architecture
+## 3. System Architecture & Workflow
 
 ```mermaid
 flowchart TD
-    User["Clinical User / Researcher"] -->|"Input 24 Biomarkers or Select Presets"| Frontend["Healthcare Web Dashboard (HTML5 / CSS / Vanilla JS)"]
-    Frontend -->|"JSON Payload (POST /predict)"| Backend["FastAPI Microservice (backend/main.py)"]
-    Backend -->|"Data Validation (Pydantic v2 extra='forbid')"| Preprocessor["Fitted Preprocessor (models/preprocessor.joblib)"]
-    Preprocessor -->|"Imputation & Ordered 24 Features"| Model["Trained Decision Tree (models/ckd_model.joblib)"]
-    Model -->|"Leaf Class & Uncalibrated Leaf Probability"| SHAP["SHAP TreeExplainer Engine (src/explain_predictions.py)"]
+    Doc["Medical Report (PDF / JPG / PNG)"] -->|"Upload & Staging (POST /upload-document)"| Upload["Ephemeral Document Manager"]
+    Upload -->|"Text Extraction (POST /extract-text)"| OCR["Document OCR & Text Parser"]
+    OCR -->|"Pattern Extraction (POST /extract-parameters)"| Extractor["Clinical Parameter Extractor"]
+    Extractor -->|"Candidate Values & Provenance"| Verification["Patient Data Verification UI"]
+    
+    User["Clinician / Researcher"] -->|"Manual Verification & Edits"| Verification
+    Verification -->|"Verified Parameters (POST /predict-verified)"| Preprocessor["Fitted Preprocessor (models/preprocessor.joblib)"]
+    
+    Preprocessor -->|"Ordered 24 Features"| Model["Random Forest Classifier (models/ckd_model.joblib)"]
+    Model -->|"Predicted Class & Ensemble Probability"| SHAP["SHAP TreeExplainer Engine (src/explain_predictions.py)"]
     SHAP -->|"Local Shapley Attributions & Waterfall Plot"| Synthesizer["Clinical Summary & Response Assembler"]
-    Synthesizer -->|"Prediction, Probabilities, Risk Drivers, Base64 Plot"| Frontend
-    Frontend -->|"Renders Prediction, Calibration Alert, Factors, Waterfall"| User
+    
+    Synthesizer -->|"Prediction, SHAP Data, Plot Base64"| Frontend["Web Dashboard (frontend/)"]
+    Synthesizer -->|"Download Report (POST /download-report)"| PDF["Vector PDF Report Generator (src/report_generator.py)"]
+    PDF -->|"3-Page PDF Report"| User
 ```
 
 ### Architectural Highlights
-- **Stateless Inference**: Zero patient data is written to disk or database; all payload computations execute entirely in volatile application memory.
+- **Stateless Inference & Session Purging**: Uploaded medical files are held in temporary storage and completely purged upon session completion or cancellation. Zero patient records are stored permanently.
 - **Singleton Lifecycle Cache**: The model, preprocessor, and TreeExplainer are loaded once into memory during FastAPI lifespan startup, guaranteeing sub-50ms inference times.
-- **Fail-Safe Client / Server Validation**: Both client-side JavaScript and backend Pydantic schemas enforce identical physiological limits (e.g., blood pressure 50–200 mmHg, serum creatinine 0.4–20.0 mg/dL).
+- **Fail-Safe Client / Server Validation**: Both client-side JavaScript and backend Pydantic schemas enforce identical physiological limits (e.g., blood pressure 40–250 mmHg, serum creatinine 0.1–100.0 mg/dL).
 
 ---
 
@@ -57,20 +68,20 @@ flowchart TD
 
 | Layer | Technology | Version | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Language** | Python | 3.10 – 3.14 | Core language for machine learning and microservice |
+| **Language** | Python | 3.10 – 3.14 | Core language for machine learning, API microservice, and document processing |
 | **Data Processing** | Pandas, NumPy | $\ge$ 2.2.0, $\ge$ 1.26.0 | Missing value handling, stratified splitting, feature matrices |
-| **Machine Learning** | Scikit-learn, Joblib | $\ge$ 1.4.0, $\ge$ 1.3.0 | Decision Tree Classifier, evaluation metrics, artifact serialization |
+| **Machine Learning** | Scikit-learn, XGBoost, Joblib | $\ge$ 1.4.0, $\ge$ 2.0.0, $\ge$ 1.3.0 | Random Forest, Decision Tree baseline, model serialization |
 | **Explainable AI** | SHAP | $\ge$ 0.45.0 | TreeExplainer, exact Shapley values, beeswarm and waterfall plots |
-| **Plot Generation** | Matplotlib | $\ge$ 3.8.0 | Publication-quality headless vector rendering (Agg backend) |
+| **Plot Generation** | Matplotlib | $\ge$ 3.8.0 | Headless vector rendering (Agg backend) for waterfall charts and reports |
 | **Backend API** | FastAPI, Uvicorn | $\ge$ 0.110.0, $\ge$ 0.28.0 | High-performance asynchronous REST microservice |
 | **Schema Validation** | Pydantic (v2) | $\ge$ 2.6.0 | Strict clinical typing, physiological bounds, `extra="forbid"` |
-| **Frontend UI** | HTML5, CSS3, JavaScript | ES6+ | Modern, responsive clinical dashboard with Fetch API (zero external frameworks) |
-| **Automated Testing** | Pytest, HTTPX | $\ge$ 8.0.0, $\ge$ 0.27.0 | Automated unit, evaluation, explainability, API, and integration test suite |
-| **Containerization** | Docker | 28.5+ | Portable multi-stage POSIX containerization |
+| **Document Processing** | PyPDF, Pillow, pytesseract | $\ge$ 4.0.0, $\ge$ 10.0.0, $\ge$ 0.3.10 | PDF parsing, image validation, OCR text extraction |
+| **Frontend UI** | HTML5, CSS3, JavaScript | ES6+ | Responsive clinical dashboard with Fetch API (zero external frameworks) |
+| **Automated Testing** | Pytest, HTTPX | $\ge$ 8.0.0, $\ge$ 0.27.0 | Automated unit, evaluation, explainability, API, and integration test suite (177 tests) |
 
 ---
 
-## 5. Dataset Source and Attribution
+## 5. Dataset Source and Feature Schema
 
 - **Dataset Name**: Chronic Kidney Disease (CKD) Dataset
 - **Repository**: UCI Machine Learning Repository (Dataset ID: 336)
@@ -81,374 +92,241 @@ flowchart TD
 - **Class Balance**: 250 CKD cases (62.5%) and 150 Non-CKD cases (37.5%).
 - **Feature Dimensionality**: 24 clinical parameters (14 continuous numerical, 10 nominal/categorical):
 
-| Feature Code | Clinical Description | Data Type | Units / Valid Levels |
-| :--- | :--- | :--- | :--- |
-| `age` | Patient Age | Numerical | 1 – 100 years |
-| `bp` | Blood Pressure | Numerical | 50 – 180 mm/Hg |
-| `sg` | Urine Specific Gravity | Numerical | 1.005, 1.010, 1.015, 1.020, 1.025 |
-| `al` | Albumin in Urine | Numerical | 0, 1, 2, 3, 4, 5 (urinalysis scale) |
-| `su` | Sugar in Urine | Numerical | 0, 1, 2, 3, 4, 5 (urinalysis scale) |
-| `rbc` | Red Blood Cells in Urine | Categorical | `normal`, `abnormal` |
-| `pc` | Pus Cells in Urine | Categorical | `normal`, `abnormal` |
-| `pcc` | Pus Cell Clumps | Categorical | `present`, `notpresent` |
-| `ba` | Bacteria in Urine | Categorical | `present`, `notpresent` |
-| `bgr` | Blood Glucose Random | Numerical | 20 – 500 mg/dL |
-| `bu` | Blood Urea | Numerical | 1 – 400 mg/dL |
-| `sc` | Serum Creatinine | Numerical | 0.4 – 20.0 mg/dL |
-| `sod` | Serum Sodium | Numerical | 100 – 180 mEq/L |
-| `pot` | Serum Potassium | Numerical | 2.0 – 10.0 mEq/L |
-| `hemo` | Hemoglobin | Numerical | 3.0 – 20.0 g/dL |
-| `pcv` | Packed Cell Volume | Numerical | 10 – 60 % |
-| `wbcc` | White Blood Cell Count | Numerical | 2,000 – 30,000 cells/cu.mm |
-| `rbcc` | Red Blood Cell Count | Numerical | 2.0 – 8.0 millions/cu.mm |
-| `htn` | Hypertension | Categorical | `yes`, `no` |
-| `dm` | Diabetes Mellitus | Categorical | `yes`, `no` |
-| `cad` | Coronary Artery Disease | Categorical | `yes`, `no` |
-| `appet` | Appetite | Categorical | `good`, `poor` |
-| `pe` | Pedal Edema | Categorical | `yes`, `no` |
-| `ane` | Anemia | Categorical | `yes`, `no` |
+| Feature Code | Clinical Description | Data Type | Units / Valid Levels | Physiological Bounds |
+| :--- | :--- | :--- | :--- | :--- |
+| `age` | Patient Age | Numerical | years | 1 – 120 |
+| `bp` | Blood Pressure | Numerical | mm/Hg | 40 – 250 |
+| `sg` | Urine Specific Gravity | Numerical | density | 1.000 – 1.040 |
+| `al` | Albumin in Urine | Numerical | grade (0–5) | 0 – 5 |
+| `su` | Sugar in Urine | Numerical | grade (0–5) | 0 – 5 |
+| `bgr` | Blood Glucose Random | Numerical | mg/dL | 20 – 600 |
+| `bu` | Blood Urea | Numerical | mg/dL | 1 – 500 |
+| `sc` | Serum Creatinine | Numerical | mg/dL | 0.1 – 100.0 |
+| `sod` | Serum Sodium | Numerical | mEq/L | 50 – 200 |
+| `pot` | Serum Potassium | Numerical | mEq/L | 1.0 – 60.0 |
+| `hemo` | Hemoglobin | Numerical | g/dL | 2.0 – 25.0 |
+| `pcv` | Packed Cell Volume | Numerical | % | 5 – 65 |
+| `wbcc` | White Blood Cell Count | Numerical | cells/cumm | 1,000 – 35,000 |
+| `rbcc` | Red Blood Cell Count | Numerical | millions/cmm | 1.0 – 10.0 |
+| `rbc` | Red Blood Cells in Urine | Categorical | `normal`, `abnormal` | 0 / 1 |
+| `pc` | Pus Cells in Urine | Categorical | `normal`, `abnormal` | 0 / 1 |
+| `pcc` | Pus Cell Clumps | Categorical | `present`, `notpresent` | 0 / 1 |
+| `ba` | Bacteria in Urine | Categorical | `present`, `notpresent` | 0 / 1 |
+| `htn` | Hypertension | Categorical | `yes`, `no` | 0 / 1 |
+| `dm` | Diabetes Mellitus | Categorical | `yes`, `no` | 0 / 1 |
+| `cad` | Coronary Artery Disease | Categorical | `yes`, `no` | 0 / 1 |
+| `appet` | Appetite | Categorical | `good`, `poor` | 0 / 1 |
+| `pe` | Pedal Edema | Categorical | `yes`, `no` | 0 / 1 |
+| `ane` | Anemia | Categorical | `yes`, `no` | 0 / 1 |
 
 ---
 
-## 6. Dataset Preprocessing
+## 6. Preprocessing & Leakage Prevention Guarantees
 
-To ensure clinical validity and absolute zero data leakage:
-1. **Stratified Partitioning**: The 400 patient records were partitioned into 80% training ($N=320$) and 20% held-out test ($N=80$) splits using `stratify=y` with `random_state=42`.
-2. **Leak-Free Median Imputation**: Continuous variables exhibit significant clinical skewness due to severe pathology (e.g., serum creatinine up to 15.0+ mg/dL). Medians computed strictly on `X_train` are used to impute missing continuous entries.
-3. **Leak-Free Mode Imputation**: Categorical variables are imputed using modal categories derived strictly from `X_train`.
+To ensure methodologically sound and leak-free machine learning:
+1. **Stratified Split**: Partitioned into 80% training ($N=320$) and 20% held-out test ($N=80$) splits using `stratify=y` with deterministic seed (`seed=42`).
+2. **Strict Training-Only Imputation**:
+   - Continuous numerical features: Imputed using medians calculated **strictly on `X_train`**.
+   - Categorical features: Imputed using modes calculated **strictly on `X_train`**.
+3. **Cross-Validation In-Fold Preprocessing**: During stratified 5-fold cross-validation, a fresh `CKDPreprocessor` is fitted strictly within each training fold before transforming the validation fold.
 4. **Binary Encoding**: Categorical labels are converted to numerical indicators ($0 = \text{normal/absent/good/no}$, $1 = \text{abnormal/present/poor/yes}$).
-5. **Feature Schema Serialization**: Imputation medians, modes, and column orders are saved in `models/preprocessor.joblib` and `data/processed/preprocessing_metadata.json`, ensuring the exact same transformations execute during inference.
+5. **Zero Row Overlap**: Audit verified 0 duplicate rows in the raw dataset and 0 row overlap between train and test partitions.
 
 ---
 
-## 7. Machine Learning Algorithm
+## 7. Model Comparison & Random Forest Selection
 
-A **Decision Tree Classifier** (`DecisionTreeClassifier`) was chosen as the core predictive estimator:
-- **Clinical Interpretability**: Decision trees mirror clinical decision logic (threshold-based rule paths), allowing direct human review of split criteria.
-- **Exact Polynomial TreeSHAP**: Decision trees are natively supported by `shap.TreeExplainer`, which computes exact Shapley values in $O(TLD^2)$ time without heuristic sampling approximations.
-- **Fast, Deterministic Inference**: Eliminates deep learning compute overhead and executes inference in under 5 milliseconds.
+In Phase 2, an empirical benchmark was conducted across four candidate algorithms using identical preprocessing, stratified cross-validation, and held-out test evaluation.
 
-### Hyperparameters Configured
-```python
-DecisionTreeClassifier(
-    criterion='gini',
-    max_depth=5,              # Prevents deep uninterpretable rule chains
-    min_samples_split=4,      # Ensures split robustness
-    min_samples_leaf=2,       # Prevents single-instance outlier leaves
-    class_weight='balanced',  # Weights minority classes inversely to penalize False Negatives
-    random_state=42           # Guarantees deterministic reproducibility
-)
-```
+### Table 1: Performance on Held-Out Test Set ($N=80$: 50 CKD, 30 Non-CKD)
 
----
+| Model | Accuracy | Recall (Sensitivity) | Specificity | Precision | F1-Score | ROC-AUC | Confusion Matrix (TN, FP, FN, TP) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Decision Tree (Baseline)** | 96.25% | 94.00% | 100.00% | 100.00% | 0.9691 | 0.9890 | `TN=30, FP=0, FN=3, TP=47` |
+| **Logistic Regression** | 97.50% | 96.00% | 100.00% | 100.00% | 0.9796 | 0.9993 | `TN=30, FP=0, FN=2, TP=48` |
+| **Random Forest (Selected)** | **100.00%** | **100.00%** | **100.00%** | **100.00%** | **1.0000** | **1.0000** | **`TN=30, FP=0, FN=0, TP=50`** |
+| **XGBoost** | **100.00%** | **100.00%** | **100.00%** | **100.00%** | **1.0000** | **1.0000** | **`TN=30, FP=0, FN=0, TP=50`** |
 
-## 8. Model Evaluation Results
+### Table 2: Stratified 5-Fold Cross-Validation on Training Cohort ($N=320$, Mean $\pm$ Std)
 
-### 8.1 Performance on Held-Out Test Set ($N=80$)
+| Model | CV Accuracy | CV Recall (Sensitivity) | CV Specificity | CV Precision | CV F1-Score | CV ROC-AUC |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Decision Tree (Baseline)** | 95.00% $\pm$ 2.30% | 96.00% $\pm$ 3.00% | 93.33% $\pm$ 3.33% | 96.03% $\pm$ 1.88% | 0.9599 $\pm$ 0.0187 | 0.9525 $\pm$ 0.0215 |
+| **Logistic Regression** | **99.38% $\pm$ 0.76%** | 99.00% $\pm$ 1.22% | **100.00% $\pm$ 0.00%** | **100.00% $\pm$ 0.00%** | **0.9949 $\pm$ 0.0062** | **1.0000 $\pm$ 0.0000** |
+| **Random Forest (Selected)** | 99.06% $\pm$ 1.25% | **99.50% $\pm$ 1.00%** | 98.33% $\pm$ 2.04% | 99.01% $\pm$ 1.21% | 0.9925 $\pm$ 0.0100 | 0.9994 $\pm$ 0.0008 |
+| **XGBoost** | 97.81% $\pm$ 1.59% | 98.00% $\pm$ 1.00% | 97.50% $\pm$ 3.33% | 98.52% $\pm$ 1.96% | 0.9825 $\pm$ 0.0126 | 0.9990 $\pm$ 0.0011 |
 
-| Evaluation Metric | Value | Clinical Meaning |
-| :--- | :---: | :--- |
-| **Accuracy** | **96.25%** | 77 of 80 held-out patient cases correctly classified |
-| **Precision (PPV)** | **100.00%** | Zero false alarms ($FP=0$); every patient predicted with CKD actually had CKD |
-| **Sensitivity / Recall** | **94.00%** | 47 of 50 CKD patients detected ($FN=3$); high sensitivity for early detection |
-| **Specificity (TNR)** | **100.00%** | 30 of 30 healthy patients correctly ruled out |
-| **F1-Score** | **0.9691** | Balanced harmonic mean of precision and recall |
-| **ROC-AUC Score** | **0.9890** | Outstanding discriminatory capability across probability thresholds |
-
-### 8.2 Confusion Matrix Breakdown ($N=80$)
-$$\begin{pmatrix} TN = 30 & FP = 0 \\ FN = 3 & TP = 47 \end{pmatrix}$$
-
-### 8.3 5-Fold Cross-Validation on Training Data ($N=320$)
-- **Fold Accuracies**: `[0.9531, 0.9844, 0.9062, 0.9375, 0.9688]`
-- **Mean Accuracy**: `95.00% ± 3.06%`
-- **Mean ROC-AUC**: `0.9427 ± 0.0350`
-
-### 8.4 Baseline Model Benchmarking
-
-| Model | Test Accuracy | Precision (CKD) | Recall (CKD) | F1-Score | ROC-AUC |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **Dummy (Most Frequent)** | 62.50% | 62.50% | 100.00% | 0.7692 | 0.5000 |
-| **Logistic Regression (Standardized)** | 97.50% | 96.15% | 100.00% | 0.9804 | 0.9980 |
-| **Random Forest (100 Trees)** | 98.75% | 98.04% | 100.00% | 0.9901 | 0.9993 |
-| **Primary Decision Tree** | **96.25%** | **100.00%** | **94.00%** | **0.9691** | **0.9890** |
+### Selection Rationale
+1. **Clinical Priority (Maximum Sensitivity)**: In nephrology screening, False Negatives (missed renal failure) carry severe prognostic risks. Random Forest achieved the highest cross-validation sensitivity (**$99.50\% \pm 1.00\%$**), missing only 1 CKD case across all 200 cross-validation validation evaluations combined.
+2. **Resistance to Small-Sample Overfitting**: Random Forest bagging with `max_depth=3` averages variance across 100 decorrelated trees, demonstrating superior stability compared to sequential gradient boosting (XGBoost CV accuracy: 97.81%).
+3. **Native Polynomial-Time TreeSHAP**: Random Forest ensembles are natively supported by `shap.TreeExplainer`, providing exact, additive Shapley explanations directly on probability scale without background sampling approximations.
 
 ---
 
-## 9. SHAP Methodology
+## 8. SHAP Explainability Engine
 
-**SHAP (SHapley Additive exPlanations)** applies cooperative game theory (Lloyd Shapley, 1953) to machine learning:
+**SHAP (SHapley Additive exPlanations)** computes the marginal contribution of each clinical feature across all possible feature subsets:
 $$\phi_i(f, x) = \sum_{S \subseteq F \setminus \{i\}} \frac{|S|!(|F| - |S| - 1)!}{|F|!} \left[ f(S \cup \{i\}) - f(S) \right]$$
 
 ### Implementation Details:
-1. **TreeExplainer Compatibility**: Utilizes `shap.TreeExplainer(model, feature_perturbation='tree_path_dependent')`, which computes exact Shapley attributions in polynomial time.
-2. **Positive Class Attribution**: Attributions are dynamically indexed against Class 1 (CKD probability), ensuring that positive $\phi_i > 0$ strictly represents factors increasing disease risk.
-3. **Cohort Baseline ($E[f(x)]$)**: Due to balanced class weighting during training, the cohort baseline is exactly $0.5000$.
-4. **Mathematical Additivity Verified**: Every patient explanation satisfies:
-   $$f(x) = E[f(x)] + \sum_{i=1}^{24} \phi_i(x)$$
-5. **Cohort-Level Top Features**:
-   - **Hemoglobin (`hemo`)**: 59.3% Gini importance, mean $|SHAP| = 0.1742$ (Anemia from diminished erythropoietin production).
-   - **Specific Gravity (`sg`)**: 20.5% Gini importance, mean $|SHAP| = 0.1085$ (Tubular concentration defect).
-   - **Red Blood Cell Count (`rbcc`)**: 9.6% Gini importance, mean $|SHAP| = 0.0412$.
-   - **Hypertension (`htn`)**: 5.2% Gini importance, mean $|SHAP| = 0.0398$.
+1. **TreeExplainer Compatibility**: Utilizes `shap.TreeExplainer(model)` on the Random Forest ensemble, operating directly on the probability scale.
+2. **Positive Class Attribution**: Attributions are dynamically sliced against Class 1 (CKD probability), ensuring that positive $\phi_i > 0$ strictly represents factors increasing disease risk.
+3. **Mathematical Additivity**: Every patient explanation satisfies:
+   $$\text{Predicted Model Probability } P(\text{CKD}) = E[f(x)] + \sum_{i=1}^{24} \phi_i(x)$$
+   *(e.g., Base value $0.4957 + 0.4834 = 0.9791$)*.
+4. **Top Influential Biomarkers**:
+   - **Hemoglobin (`hemo`)**: 20.87% Gini importance (Anemia from diminished erythropoietin production).
+   - **Serum Creatinine (`sc`)**: 15.66% Gini importance (Diminished glomerular filtration).
+   - **Packed Cell Volume (`pcv`)**: 15.25% Gini importance.
+   - **Specific Gravity (`sg`)**: 13.08% Gini importance (Impaired tubular concentration).
+   - **Red Blood Cell Count (`rbcc`)**: 10.46% Gini importance.
 
 ---
 
-## 10. Backend Architecture
+## 9. Medical Document Extraction & Verification Pipeline
 
-The backend is developed with **FastAPI** (`backend/main.py`) following clean architecture principles:
-- **Lifespan Singleton Cache**: Machine learning model, preprocessor transformer, and TreeExplainer are loaded during startup and injected into application state.
-- **Strict Pydantic v2 Schemas** (`backend/schemas.py`):
-  - `PatientInputSchema`: Validates all 24 inputs, rejects unpermitted fields (`extra="forbid"`), and enforces physiological bounds.
-  - `PredictionResponseSchema`: Returns structured prediction codes, leaf probabilities, ordered risk drivers, narrative summaries, and base64 plots.
-- **Environment Configuration**: Dynamic port and host resolution via `PORT` (default `8000`), `HOST` (default `0.0.0.0`), and `CORS_ORIGINS` (default `*`).
-- **REST Endpoints**:
-  - `GET /`: Microservice identity and navigation.
-  - `GET /health`: Health probe reporting status of model, preprocessor, and explainer.
-  - `GET /features`: Returns clinical schema, human-readable labels, units, and ranges.
-  - `POST /predict`: Primary inference and XAI attribution workflow.
-  - `GET /metrics`: Test set performance metrics and Gini feature rankings.
-  - `GET /dashboard`: Directly serves the HTML5 clinical dashboard.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Clinician as Clinician / User
+    participant Web as Web Dashboard
+    participant API as FastAPI Backend
+    participant OCR as OCR / PDF Parser
+    participant Parser as Parameter Extractor
+    participant ML as RF Model & SHAP
+    participant PDF as PDF Report Generator
+
+    Clinician->>Web: Uploads Medical Document (PNG/JPG/PDF)
+    Web->>API: POST /upload-document (binary validation)
+    API-->>Web: Returns upload_id & file metadata
+
+    Clinician->>Web: Clicks "Extract & Verify Lab Parameters"
+    Web->>API: POST /extract-text/{upload_id}
+    API->>OCR: Runs Windows Native OCR / PDF text parser
+    OCR-->>API: Extracted raw clinical text
+    API->>Parser: POST /extract-parameters/{upload_id}
+    Parser-->>API: Deterministic regex mapping to 24 features
+    API-->>Web: Displays Candidate Parameters & Provenance (Verified / Review / Missing)
+
+    Clinician->>Web: Reviews values, edits corrections, clicks "Verify & Run Prediction"
+    Web->>API: POST /predict-verified (Verified parameters payload)
+    API->>ML: Validates bounds -> Imputes missing -> Predicts -> Computes SHAP
+    ML-->>API: Class, probabilities, risk drivers, base64 waterfall
+    API-->>Web: Renders prediction & SHAP breakdown
+
+    Clinician->>Web: Clicks "Download Clinical PDF Report"
+    Web->>API: POST /download-report
+    API->>PDF: Assembles 3-page clinical PDF report
+    PDF-->>Web: Streams application/pdf
+    Web-->>Clinician: Saves CKD_Clinical_Report.pdf
+```
 
 ---
 
-## 11. Frontend Features
+## 10. API Endpoints Reference
 
-The frontend (`frontend/`) is an accessible, modern healthcare dashboard built with Vanilla HTML5, CSS3, and JavaScript:
-- **Zero Heavy Frameworks**: No React, Angular, or Vue overhead; renders instantaneously with clean DOM scripting.
-- **Logical Panel Grouping**: Form inputs are organized into 5 clinical sections:
-  1. *Patient Vitals* (Age, Blood Pressure).
-  2. *Urinalysis* (Specific Gravity, Albumin, Sugar, RBC/Pus Cells, Clumps, Bacteria).
-  3. *Blood Chemistry* (Blood Glucose Random, Blood Urea, Serum Creatinine, Sodium, Potassium).
-  4. *Hematology* (Hemoglobin, Packed Cell Volume, WBC Count, RBC Count).
-  5. *Comorbidities & Symptoms* (Hypertension, Diabetes, CAD, Appetite, Pedal Edema, Anemia).
-- **One-Click Clinical Presets**:
-  - **Preset 1 (Confirmed CKD Case)**: Populates authentic held-out test patient UCI #204 ($sc=13.5$, $hemo=8.8$, $sg=1.010$).
-  - **Preset 2 (Healthy Non-CKD Case)**: Populates authentic held-out test patient UCI #342 ($sc=0.5$, $hemo=15.0$, $sg=1.025$).
-- **Client-Side Real-Time Validation**: Highlights inputs with physiological bounds warnings before payload dispatch.
-- **Dynamic XAI Waterfall Rendering**: Displays high-resolution base64 PNG waterfall plots showing feature-level shifts from baseline to final score.
-- **Transparent Calibration Disclosures**: Informs the user when probabilities represent pure leaf sample counts rather than calibrated epidemiological risks.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/` | Microservice root status and documentation links |
+| `GET` | `/health` | System health probe (reports model type: `RandomForestClassifier`) |
+| `GET` | `/features` | Returns clinical schema, human-readable labels, units, and ranges |
+| `POST` | `/predict` | Predicts CKD risk and returns SHAP explanation from raw JSON vitals |
+| `POST` | `/upload-document` | Validates and securely stages uploaded medical document (10MB limit) |
+| `DELETE`| `/upload-document/{id}` | Immediately cancels and purges temporary uploaded document session |
+| `POST` | `/extract-text/{id}` | Extracts text from staged document via digital parsing or native OCR |
+| `POST` | `/extract-parameters/{id}`| Deterministically extracts laboratory parameters mapped to 24 features |
+| `POST` | `/predict-verified` | Gated inference using verified parameters with provenance accounting |
+| `POST` | `/download-report` | Generates a 3-page vector PDF clinical decision support report |
+| `GET` | `/metrics` | Returns model evaluation metrics, cross-validation results, and rankings |
+| `GET` | `/dashboard` | Serves the responsive clinical web dashboard interface |
 
 ---
 
-## 12. Installation Instructions
+## 11. Installation and Local Execution
 
 ### Prerequisites
 - Python 3.10, 3.11, 3.12, 3.13, or 3.14.
-- Git (optional).
+- Windows, macOS, or Linux.
 
-### Setup Steps
+### Setup Instructions
 ```powershell
-# 1. Navigate to project root
-cd "c:\PROJECT\MINI PROJECT\CKD_Explainable_AI"
+# 1. Clone repository
+git clone https://github.com/hemanth-kr-405/CKD_Explainable_AI.git
+cd CKD_Explainable_AI
 
-# 2. Create and activate a virtual environment
+# 2. Create and activate virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1    # On Linux/macOS: source .venv/bin/activate
 
-# 3. Upgrade pip and install dependencies
-pip install --upgrade pip
+# 3. Upgrade pip and install pinned dependencies
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
----
-
-## 13. Commands to Run the Application Locally
-
-### A. Run Data Preprocessing
-Ingests raw data, fits leak-free imputation medians/modes on training split ($N=320$), and saves `preprocessor.joblib`:
+### Running the Application Locally
 ```powershell
-python src/preprocessing.py
-```
-
-### B. Train the Decision Tree Model
-Trains the model with balanced weights, runs 5-fold cross-validation, and saves `ckd_model.joblib`:
-```powershell
-python src/train_model.py
-```
-
-### C. Evaluate Model & Benchmark
-Generates confusion matrix, ROC curve, baseline comparisons, and updates `models/metrics.json`:
-```powershell
-python src/evaluate_model.py
-```
-
-### D. Generate SHAP Visualizations
-Generates global summary bar plot, beeswarm chart, and patient waterfall plots in `reports/figures/`:
-```powershell
-python src/explain_predictions.py
-```
-
-### E. Start the FastAPI Web Server & Healthcare Dashboard
-Launch the server with live reload on `http://127.0.0.1:8000`:
-```powershell
+# Start the FastAPI server with live reload on port 8000
 python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 - **Web Dashboard:** [http://127.0.0.1:8000/dashboard](http://127.0.0.1:8000/dashboard)
 - **Interactive Swagger Docs:** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
 - **Alternative ReDoc UI:** [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
 
----
-
-## 14. API Endpoint Descriptions
-
-### 1. `GET /health`
-Returns system health, artifact loading states, and feature count.
-- **Response**: `{"status": "healthy", "model_loaded": true, "preprocessor_loaded": true, "explainer_ready": true, "algorithm": "DecisionTreeClassifier", "features_count": 24, "version": "1.0.0"}`
-
-### 2. `GET /features`
-Returns the expected 24 features with data types, valid clinical ranges, units, and categories.
-
-### 3. `POST /predict`
-Evaluates a patient's clinical parameters, returning prediction label, probabilities, risk drivers, narrative, and optional waterfall plot.
-- **Sample cURL Request (Held-Out Test Record #204 - CKD)**:
-```bash
-curl -X POST "http://127.0.0.1:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "age": 65.0, "bp": 90.0, "sg": 1.010, "al": 4.0, "su": 2.0,
-       "bgr": 172.0, "bu": 82.0, "sc": 13.5, "sod": 145.0, "pot": 6.3,
-       "hemo": 8.8, "pcv": 31.0, "wbcc": 8100.0, "rbcc": 4.8,
-       "rbc": "normal", "pc": "normal", "pcc": "notpresent", "ba": "notpresent",
-       "htn": "yes", "dm": "yes", "cad": "no", "appet": "good", "pe": "yes", "ane": "yes",
-       "include_plot": false
-     }'
-```
-- **Sample JSON Response**:
-```json
-{
-  "prediction_label": "Chronic Kidney Disease (CKD)",
-  "prediction_code": 1,
-  "probabilities": {
-    "ckd_probability": 1.0,
-    "non_ckd_probability": 0.0
-  },
-  "explanation_method": "SHAP (TreeExplainer)",
-  "explanation": {
-    "base_value": 0.5,
-    "patient_model_output": 1.0,
-    "top_risk_drivers": [
-      {
-        "feature": "sg",
-        "clinical_label": "Specific Gravity (density)",
-        "patient_value": 1.01,
-        "shap_value": 0.1651,
-        "direction": "Increases Predicted CKD Probability"
-      },
-      {
-        "feature": "htn",
-        "clinical_label": "Hypertension",
-        "patient_value": "yes",
-        "shap_value": 0.1597,
-        "direction": "Increases Predicted CKD Probability"
-      },
-      {
-        "feature": "hemo",
-        "clinical_label": "Hemoglobin (g/dL)",
-        "patient_value": 8.8,
-        "shap_value": 0.1515,
-        "direction": "Increases Predicted CKD Probability"
-      }
-    ],
-    "top_protective_factors": []
-  },
-  "clinical_summary": "The model's decision path predicts Chronic Kidney Disease (CKD) with an uncalibrated leaf probability of 100.0%...",
-  "medical_disclaimer": "Educational Decision Support: SHAP explanations explain algorithmic reasoning..."
-}
-```
-
-### 4. `GET /metrics`
-Returns evaluation metrics (accuracy, precision, recall, specificity, F1, ROC-AUC) and Gini feature importances.
-
-### 5. `GET /dashboard`
-Serves the complete responsive HTML5/CSS/JavaScript web dashboard.
-
----
-
-## 15. Testing Instructions
-
-The repository includes a comprehensive 42-test automated verification suite across 6 dedicated test modules:
+### Running Reproducible Model Experiments
 ```powershell
+# Run the leak-free Phase 2 benchmarking harness across all 4 algorithms
+python src/model_comparison.py
+
+# Regenerate global SHAP attributions and figures
+python src/explain_predictions.py
+```
+
+### Running the Complete Automated Test Suite
+```powershell
+# Run the complete test suite (177 tests)
 python -m pytest tests/ -v
 ```
 
-### Test Suite Organization:
-1. `tests/test_preprocessing.py` (6 tests): Validates raw data integrity, median/mode imputation parameter learning, string sanitation, and train/test stratified splitting.
+---
+
+## 12. Automated Test Suite Organization
+
+The project contains **177 automated tests** across 16 test modules with 100% pass rate:
+
+1. `tests/test_preprocessing.py` (6 tests): Validates raw data integrity, median/mode parameter learning, string sanitation, and stratified splitting.
 2. `tests/test_model.py` (5 tests): Checks artifact serialization, model reload, test predictions, and inference pipeline.
 3. `tests/test_evaluation.py` (3 tests): Verifies mathematical consistency of accuracy, precision, recall, specificity, and confusion matrix arithmetic.
-4. `tests/test_explainability.py` (7 tests): Tests `TreeExplainer` initialization, positive-class alignment, additivity check ($E[f(x)] + \sum \phi_i = f(x)$), and waterfall rendering.
-5. `tests/test_api.py` (8 tests): Validates `/health`, `/features`, `/predict`, `/metrics`, `/dashboard`, physiological bounds, categorical rejection, and `extra="forbid"`.
-6. `tests/test_integration.py` (13 tests): End-to-end multi-step scenarios including preset loading, static asset serving, schema synchronization, and outlier validation.
+4. `tests/test_explainability.py` (14 tests): Tests TreeExplainer initialization, positive-class alignment, additivity check, waterfall rendering, and governance checks.
+5. `tests/test_api.py` (9 tests): Validates `/health`, `/features`, `/predict`, `/metrics`, `/dashboard`, physiological bounds, categorical rejection, and `extra="forbid"`.
+6. `tests/test_integration.py` (11 tests): End-to-end multi-step scenarios including preset loading, static asset serving, schema synchronization, and outlier validation.
+7. `tests/test_document_upload.py` (14 tests): Validates file type checking (PDF, PNG, JPG), size bounds, session isolation, and purge mechanics.
+8. `tests/test_document_extraction.py` (10 tests): Digital PDF parsing, image extraction, and graceful error handling.
+9. `tests/test_image_extraction_pipeline.py` (22 tests): Image format handling (RGB, RGBA, Grayscale, JPEG), OCR error recovery, and temp file cleanup.
+10. `tests/test_parameter_extraction.py` (26 tests): Clinical regex parsing, reference-range immunity, unit normalization, and conflict resolution.
+11. `tests/test_patient_verification.py` (18 tests): Bounds validation, missing parameter counting, and verification status validation.
+12. `tests/test_verified_prediction.py` (15 tests): Verified prediction gating, provenance accounting, probability caveats, and disclaimer enforcement.
+13. `tests/test_report_generation.py` (16 tests): Vector PDF layout, patient values, section headers, SHAP drivers, and medical disclaimers.
+14. `tests/test_dashboard_form.py` (4 tests): Verification form rendering, field mappings, and DOM synchronization.
+15. `tests/test_model_comparison.py` (4 tests): Verifies candidate models, benchmark report completeness, Random Forest active status, and Decision Tree backup integrity.
 
 ---
 
-## 16. Deployment Instructions
+## 13. Limitations & Clinical Governance Disclosures
 
-### 16.1 Docker Containerization
-The project includes a production-ready, multi-stage POSIX Docker configuration ([Dockerfile](file:///c:/PROJECT/MINI%20PROJECT/CKD_Explainable_AI/Dockerfile), [.dockerignore](file:///c:/PROJECT/MINI%20PROJECT/CKD_Explainable_AI/.dockerignore)).
-
-1. **Build the Docker image:**
-   ```bash
-   docker build -t ckd-explainable-ai .
-   ```
-
-2. **Run the container locally:**
-   ```bash
-   docker run -p 8000:8000 -e PORT=8000 -e CORS_ORIGINS="*" ckd-explainable-ai
-   ```
-
-3. **Verify running container health:**
-   ```bash
-   curl http://localhost:8000/health
-   ```
-
-### 16.2 Cloud Platform Deployment (Render, Railway, Hugging Face Spaces)
-The repository includes standard production configuration files:
-- [Procfile](file:///c:/PROJECT/MINI%20PROJECT/CKD_Explainable_AI/Procfile): `web: uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-- [render.yaml](file:///c:/PROJECT/MINI%20PROJECT/CKD_Explainable_AI/render.yaml): Blueprint defining Python 3.11 environment, health check probe at `/health`, and auto-start commands.
-
-#### Deployment Steps on Render:
-1. Push this repository to GitHub or GitLab.
-2. In Render, select **New Web Service** and link the repository.
-3. Select **Python** runtime (or Docker runtime).
-4. Set Build Command: `pip install -r requirements.txt`
-5. Set Start Command: `python -m uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
-6. Add Health Check Path: `/health`
-
-### 16.3 Environment Variables
-| Variable | Default Value | Description |
-| :--- | :--- | :--- |
-| `PORT` | `8000` | Port on which Uvicorn binds |
-| `HOST` | `0.0.0.0` | Host IP binding address |
-| `CORS_ORIGINS` | `*` | Comma-separated list of allowed origins (e.g., `https://myhospital.org,http://localhost:3000`) |
-
----
-
-## 17. Limitations
-
-1. **Terminal-Leaf Sample Purity vs. Calibrated Risk**: Decision Tree class probabilities reflect the proportion of training instances within the terminal leaf node where an input lands. In pure leaf nodes, this value is `1.0` (100.0%) or `0.0` (0.0%). These values represent training-sample purity, not calibrated clinical risk estimates or Bayesian posterior probabilities of disease.
-2. **Single-Center Cohort & Generalizability**: The model was trained on 400 historical patient records from Apollo Hospitals in Tamil Nadu, India. External multi-center validation across diverse ethnic, geographic, and demographic cohorts has not been performed.
-3. **Absence of Direct KDIGO Staging Markers**: Direct clinical staging markers established by the KDIGO (Kidney Disease: Improving Global Outcomes) guidelines—specifically measured or calculated estimated Glomerular Filtration Rate (eGFR) and Urine Albumin-to-Creatinine Ratio (uACR)—are unavailable in the historical dataset. The model performs binary presence screening (`CKD` vs `Non-CKD`) and **does not determine clinical CKD stages (Stage 1 to 5)**.
+1. **Internal Empirical Benchmark vs. External Clinical Validation**: The 100% test cohort accuracy and $99.50\% \pm 1.00\%$ cross-validation recall are internal statistical measurements on a retrospective single-center dataset ($N=400$, Apollo Hospitals, India). External multi-center validation across diverse ethnic, geographic, and demographic cohorts has not been performed.
+2. **Uncalibrated Model Probability**: Model probabilities reflect the proportion of decision tree ensemble votes from training data. They represent training-sample purity, not calibrated clinical risk estimates or Bayesian posterior probabilities of disease.
+3. **Binary Classification Only (No KDIGO Staging)**: Direct clinical staging markers established by the KDIGO guidelines—specifically measured or calculated estimated Glomerular Filtration Rate (eGFR) and Urine Albumin-to-Creatinine Ratio (uACR)—are unavailable in the historical dataset. The model performs binary presence screening (`CKD` vs `Non-CKD`) and **does not predict clinical CKD stages (Stage 1 to 5)**.
 4. **Retrospective Cross-Sectional Nature**: The source dataset captures static, retrospective encounters rather than longitudinal prospective patient monitoring over time.
-5. **Statistical Attribution vs. Biological Causality**: Feature attributions computed by SHAP reflect mathematical influence along learned decision paths in the tree; they indicate model sensitivity, not biological or pathophysiological causation.
+5. **Statistical Attribution vs. Biological Causality**: Feature attributions computed by SHAP reflect mathematical influence along learned decision tree splits; they indicate model sensitivity, not biological or pathophysiological causation.
 
 ---
 
-## 18. Future Enhancements
-
-1. **Probability Calibration**: Integrate Platt scaling or isotonic regression on a validation split to calibrate tree probabilities into continuous epidemiological risk estimates.
-2. **Ensemble Modeling with TreeSHAP**: Train ensemble architectures (e.g., Random Forest, XGBoost) and leverage GPU-accelerated TreeSHAP for enhanced accuracy while maintaining explainability.
-3. **Multi-Center External Cohort Validation**: Validate the preprocessor and estimator on modern electronic health record (EHR) cohorts (e.g., MIMIC-IV, UK Biobank).
-4. **HL7 FHIR Interoperability**: Implement FHIR JSON schema adapters to allow seamless patient vital ingestion from hospital EHR systems.
-5. **Interactive Counterfactual Explanations**: Integrate "What-If" counterfactual generation (e.g., DiCE) to inform clinicians what lifestyle or biomarker modifications would reduce patient risk below the decision threshold.
-
----
-
-## 19. Directory Structure
+## 14. Project Directory Structure
 
 ```
 CKD_Explainable_AI/
 ├── Dockerfile                         # Production multi-stage Docker container specification
-├── Procfile                           # Cloud process launcher (Render, Heroku, Railway)
+├── Procfile                           # Cloud process launcher (Render, Railway)
 ├── render.yaml                        # Infrastructure-as-code deployment blueprint
 ├── requirements.txt                   # Pinned Python package dependencies
 ├── README.md                          # Comprehensive project documentation
@@ -460,57 +338,53 @@ CKD_Explainable_AI/
 │       ├── test.csv                   # Held-out test partition (N=80)
 │       └── preprocessing_metadata.json# Learned medians and categorical modes
 ├── models/
-│   ├── ckd_model.joblib               # Trained Decision Tree Classifier
+│   ├── ckd_model.joblib               # Active production model (Random Forest Classifier)
+│   ├── ckd_model_decision_tree_backup.joblib # Reversible backup of baseline Decision Tree
 │   ├── preprocessor.joblib            # Fitted CKDPreprocessor instance
-│   ├── metrics.json                   # Serialized test performance metrics
-│   └── backup/                        # Verified artifact backups
+│   ├── metrics.json                   # Serialized Random Forest evaluation metrics
+│   ├── metrics_decision_tree_backup.json # Backup of baseline Decision Tree metrics
+│   └── candidates/                    # Serialized benchmark candidates (DT, LR, RF, XGB)
 ├── src/
 │   ├── config.py                      # Central configuration, clinical bounds, mappings
 │   ├── preprocessing.py               # Leak-free cleaning, imputation, binary encoding
-│   ├── train_model.py                 # Balanced tree training with 5-fold CV
-│   ├── evaluate_model.py              # Metrics, confusion matrix, ROC-AUC, baselines
-│   └── explain_predictions.py         # SHAP TreeExplainer engine & waterfall generator
+│   ├── train_model.py                 # Decision tree training pipeline
+│   ├── evaluate_model.py              # Evaluation metrics & curve generation
+│   ├── model_comparison.py            # Phase 2 4-algorithm benchmark harness
+│   ├── explain_predictions.py         # SHAP TreeExplainer engine & waterfall generator
+│   ├── document_upload.py             # File validation & ephemeral session manager
+│   ├── document_extractor.py          # Native OCR & PDF text extraction engine
+│   ├── parameter_extractor.py         # Clinical regex parser with reference range immunity
+│   ├── patient_verifier.py            # Verification validator & provenance accountant
+│   └── report_generator.py            # 3-page vector clinical PDF report builder
 ├── backend/
 │   ├── main.py                        # FastAPI application with REST endpoints
 │   └── schemas.py                     # Pydantic v2 schemas and validation logic
 ├── frontend/
 │   ├── index.html                     # Semantic, accessible clinical interface
 │   ├── style.css                      # Healthcare design system & responsive layout
-│   └── script.js                      # Fetch API client, live validation, preset loader
+│   └── script.js                      # Fetch API client, live validation, document handler
 ├── reports/
+│   ├── model_comparison.md            # Markdown comparison tables (Test & CV)
+│   ├── model_comparison_results.json  # Full numerical benchmarking metrics & metadata
 │   ├── academic_project_report.md     # 14-section comprehensive academic project report
-│   ├── evaluation_report.json         # Complete test metrics & baseline comparisons
-│   ├── evaluation_summary.md          # Markdown evaluation summary
+│   ├── evaluation_report.json         # Evaluation metrics & baseline comparisons
+│   ├── evaluation_summary.md          # Evaluation summary markdown
 │   ├── shap_global_importance.json    # Global mean |SHAP| feature ranking
 │   └── figures/                       # Publication-quality figures (CM, ROC, SHAP plots)
-└── tests/                             # Automated test suite (42 passing tests)
+└── tests/                             # Automated test suite (177 passing tests)
     ├── test_preprocessing.py
     ├── test_model.py
     ├── test_evaluation.py
     ├── test_explainability.py
     ├── test_api.py
-    └── test_integration.py
+    ├── test_integration.py
+    ├── test_document_upload.py
+    ├── test_document_extraction.py
+    ├── test_image_extraction_pipeline.py
+    ├── test_parameter_extraction.py
+    ├── test_patient_verification.py
+    ├── test_verified_prediction.py
+    ├── test_report_generation.py
+    ├── test_dashboard_form.py
+    └── test_model_comparison.py
 ```
-
----
-
-## 20. Ethical Considerations & Medical Disclaimer
-
-1. **Privacy by Design**: The microservice executes predictions entirely in RAM without storing patient records or transmitting data to third parties.
-2. **Algorithmic Attribution $\neq$ Biological Causation**: SHAP values indicate model sensitivity along its trained decision tree splits; they do not prove direct biological causality.
-3. **Clinical Decision Support Only**: This application is strictly an educational and investigational decision-support tool. It is not approved as a medical device and must never replace clinical laboratory tests or diagnosis by certified physicians.
-
----
-
-## 21. Troubleshooting Guidance
-
-| Issue | Root Cause | Solution |
-| :--- | :--- | :--- |
-| **Port 8000 already in use (`[WinError 10013]` or `[Errno 98]`)** | A background instance of Uvicorn or another service is listening on port 8000. | On Windows PowerShell, find and kill the process: `Get-NetTCPConnection -LocalPort 8000 \| Select-Object -ExpandProperty OwningProcess -Unique \| Stop-Process -Force`. Alternatively, launch Uvicorn on a different port: `python -m uvicorn backend.main:app --port 8001`. |
-| **ModuleNotFoundError (e.g., `No module named 'fastapi'`)** | Virtual environment is either not activated or dependencies were installed globally. | Activate the project environment (`.\.venv\Scripts\Activate.ps1` on Windows or `source .venv/bin/activate` on Linux/macOS) and run `pip install -r requirements.txt`. |
-| **Missing Model Artifacts (`FileNotFoundError: models/ckd_model.joblib`)** | The pipeline has not been executed yet or the models directory was cleared. | Run the pipeline sequentially: `python src/preprocessing.py`, then `python src/train_model.py`, and `python src/evaluate_model.py`. Verified backups are also stored in `models/backup/`. |
-| **Dashboard appears unstyled or default fonts appear** | Browser requested `/style.css` before asset route fallback was initialized or cache issue. | Hard refresh the browser using `Ctrl + F5` (Windows) or `Cmd + Shift + R` (macOS). Verify that `http://127.0.0.1:8000/frontend/style.css` returns HTTP 200. |
-| **Matplotlib GUI / Tkinter threading error** | Matplotlib attempted to open an interactive GUI window in a background server process. | The project enforces headless plotting via `matplotlib.use("Agg")` in [src/explain_predictions.py](file:///c:/PROJECT/MINI%20PROJECT/CKD_Explainable_AI/src/explain_predictions.py). Ensure scripts do not call `plt.show()` in API worker threads. |
-| **Pydantic Validation Error (HTTP 422)** | Input contains out-of-range clinical parameters, negative values, or unrecognized field keys. | Verify clinical bounds (e.g., blood pressure between 40 and 250 mm/Hg). The backend enforces `extra="forbid"`, which strictly rejects unverified field parameters. |
-| **`StarletteDeprecationWarning` during tests** | Starlette test client emits an informational warning regarding future `httpx` vs `httpx2` versions. | This warning is benign and expected from the upstream Starlette testclient library; all 42 tests execute and pass without operational impact. |
-

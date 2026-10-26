@@ -65,11 +65,14 @@ class CKDExplainer:
         if not preprocessor_path.exists():
             raise FileNotFoundError(f"Preprocessor artifact not found at {preprocessor_path}. Complete Phase 2 first.")
 
-        logging.info(f"Loading trained Decision Tree from {model_path}...")
-        self.model: DecisionTreeClassifier = joblib.load(model_path)
+        logging.info(f"Loading trained tree model from {model_path}...")
+        self.model = joblib.load(model_path)
 
         # Incompatibility check: Ensure model is supported by TreeExplainer
-        if not hasattr(self.model, "predict") or not hasattr(self.model, "tree_"):
+        # Both single decision trees (.tree_) and tree ensembles (.estimators_)
+        # are natively supported by SHAP TreeExplainer.
+        is_tree_model = hasattr(self.model, "tree_") or hasattr(self.model, "estimators_")
+        if not hasattr(self.model, "predict") or not is_tree_model:
             raise TypeError(
                 f"Incompatible model type '{type(self.model).__name__}'. "
                 "CKDExplainer requires a tree-based classifier supported by SHAP TreeExplainer."
@@ -319,9 +322,9 @@ class CKDExplainer:
                 "explanation_target": "Probability of Chronic Kidney Disease (CKD)",
                 "output_scale": "Probability Scale [0.0 to 1.0]",
                 "scale_interpretation": (
-                    "TreeExplainer operates directly on the probability scale of the leaf nodes for DecisionTreeClassifier. "
+                    f"TreeExplainer operates directly on the probability scale of the leaf nodes for {type(self.model).__name__}. "
                     "The base value E[f(x)] represents the background training cohort prevalence of CKD, and the sum of "
-                    "SHAP attributions reconstructs the predicted leaf probability."
+                    "SHAP attributions reconstructs the predicted ensemble probability."
                 ),
                 "directionality_guide": {
                     "target_class": "Class 1: Chronic Kidney Disease (CKD)",
@@ -330,7 +333,7 @@ class CKDExplainer:
                     "anchor_note": "The exact directional effect is anchored to the positive class (CKD) being explained."
                 },
                 "causality_caveat": (
-                    "Feature attributions reflect learned statistical associations in the decision tree algorithm. "
+                    "Feature attributions reflect learned statistical associations in the trained tree model. "
                     "They do NOT prove biological causation or identify clinical risk factors."
                 ),
                 "interpretation_guide": (
